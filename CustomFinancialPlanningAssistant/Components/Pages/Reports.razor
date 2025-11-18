@@ -1,0 +1,185 @@
+@page "/reports"
+@inject IReportService ReportService
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>Reports - Financial Analysis Assistant</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Generate Reports</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Create comprehensive financial reports in Excel format</MudText>
+
+<MudCard Elevation="2">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudSelect @bind-Value="_selectedDocumentId" 
+                           Label="Select Document" 
+                           Variant="Variant.Outlined"
+                           Placeholder="Choose a document to generate report">
+                    @foreach (var doc in _documents)
+                    {
+                        <MudSelectItem Value="@doc.Id">@doc.FileName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            
+            <MudItem xs="12" md="6">
+                <MudSelect @bind-Value="_selectedReportType" 
+                           Label="Report Type" 
+                           Variant="Variant.Outlined">
+                    <MudSelectItem Value="@ReportType.Summary">Summary Report</MudSelectItem>
+                    <MudSelectItem Value="@ReportType.Detailed">Detailed Report</MudSelectItem>
+                    <MudSelectItem Value="@ReportType.RatioAnalysis">Ratio Analysis</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            
+            <MudItem xs="12" md="6">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Success" 
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.TableChart"
+                           OnClick="GenerateExcelReport"
+                           Disabled="_isGenerating || _selectedDocumentId == 0">
+                    Generate Excel Report
+                </MudButton>
+            </MudItem>
+            
+            <MudItem xs="12" md="6">
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Primary" 
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.Download"
+                           OnClick="ExportRawData"
+                           Disabled="_isGenerating || _selectedDocumentId == 0">
+                    Export Raw Data
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+        
+        @if (_isGenerating)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mt-4" />
+            <MudText Align="Align.Center" Class="mt-2">Generating report...</MudText>
+        }
+    </MudCardContent>
+</MudCard>
+
+<!-- Report Type Information -->
+<MudCard Elevation="2" Class="mt-4">
+    <MudCardHeader>
+        <MudText Typo="Typo.h6">Report Types</MudText>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="0">
+                    <MudIcon Icon="@Icons.Material.Filled.Summarize" Size="Size.Large" Color="Color.Primary" />
+                    <MudText Typo="Typo.h6" Class="mt-2">Summary Report</MudText>
+                    <MudText Typo="Typo.body2">
+                        High-level overview with key financial metrics, totals, and highlights.
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="0">
+                    <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Large" Color="Color.Success" />
+                    <MudText Typo="Typo.h6" Class="mt-2">Detailed Report</MudText>
+                    <MudText Typo="Typo.body2">
+                        Comprehensive report with summary, financial ratios, and detailed transaction data.
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="0">
+                    <MudIcon Icon="@Icons.Material.Filled.Calculate" Size="Size.Large" Color="Color.Info" />
+                    <MudText Typo="Typo.h6" Class="mt-2">Ratio Analysis</MudText>
+                    <MudText Typo="Typo.body2">
+                        Focus on financial ratios including profitability, liquidity, and efficiency metrics.
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private bool _isGenerating;
+    private int _selectedDocumentId;
+    private ReportType _selectedReportType = ReportType.Summary;
+    private List<FinancialDocument> _documents = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocuments();
+    }
+    
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            _documents = (await DocumentRepo.GetAllAsync()).ToList();
+            
+            // Auto-select first document if available
+            if (_documents.Any())
+            {
+                _selectedDocumentId = _documents.First().Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading documents: {ex.Message}", Severity.Error);
+        }
+    }
+    
+    private async Task GenerateExcelReport()
+    {
+        try
+        {
+            _isGenerating = true;
+            
+            var excelBytes = await ReportService.GenerateExcelReportAsync(_selectedDocumentId, _selectedReportType);
+            
+            var reportTypeName = _selectedReportType.ToString();
+            await JS.InvokeVoidAsync("downloadFile", 
+                Convert.ToBase64String(excelBytes), 
+                $"FinancialReport_{reportTypeName}_{DateTime.Now:yyyyMMdd}.xlsx", 
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            
+            Snackbar.Add("Excel report generated successfully!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating Excel report: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+    
+    private async Task ExportRawData()
+    {
+        try
+        {
+            _isGenerating = true;
+            
+            var excelBytes = await ReportService.ExportFinancialDataAsync(_selectedDocumentId);
+            
+            await JS.InvokeVoidAsync("downloadFile", 
+                Convert.ToBase64String(excelBytes), 
+                $"FinancialData_{DateTime.Now:yyyyMMdd}.xlsx", 
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            
+            Snackbar.Add("Financial data exported successfully!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error exporting data: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+}

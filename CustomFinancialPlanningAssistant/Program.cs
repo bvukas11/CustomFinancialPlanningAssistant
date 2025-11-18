@@ -4,6 +4,7 @@ using CustomFinancialPlanningAssistant.Infrastructure.FileStorage;
 using CustomFinancialPlanningAssistant.Infrastructure.Repositories;
 using CustomFinancialPlanningAssistant.Services.AI;
 using CustomFinancialPlanningAssistant.Services.Financial;
+using CustomFinancialPlanningAssistant.Services.Reports;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 
@@ -43,6 +44,10 @@ builder.Services.AddScoped<IDocumentProcessor, DocumentProcessor>();
 
 // Register Financial Service
 builder.Services.AddScoped<IFinancialService, FinancialService>();
+
+// Register Report Services
+builder.Services.AddScoped<ExcelReportService>();
+builder.Services.AddScoped<IReportService, ReportService>();
 
 // Configure AI Settings
 builder.Services.Configure<AIModelConfiguration>(
