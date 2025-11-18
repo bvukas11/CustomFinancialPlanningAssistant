@@ -1,0 +1,235 @@
+@page "/upload"
+@rendermode InteractiveServer
+@inject IDocumentProcessor DocumentProcessor
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Upload Document</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Upload Financial Document</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Upload Excel, CSV, or PDF files for analysis</MudText>
+
+<MudCard Elevation="2">
+    <MudCardContent>
+        <MudFileUpload T="IBrowserFile" 
+                       Accept=".xlsx,.xls,.csv,.pdf" 
+                       OnFilesChanged="HandleFileSelected" 
+                       MaximumFileCount="1">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           StartIcon="@Icons.Material.Filled.CloudUpload"
+                           Disabled="_isProcessing"
+                           Size="Size.Large">
+                    Select File to Upload
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
+        
+        @if (_selectedFile != null)
+        {
+            <MudChip T="string" Color="Color.Info" Icon="@Icons.Material.Filled.AttachFile" Class="mt-3">
+                @_selectedFile.Name (@FormatFileSize(_selectedFile.Size))
+            </MudChip>
+        }
+        
+        @if (_isProcessing)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mt-4" />
+            <MudText Typo="Typo.body2" Align="Align.Center" Class="mt-2">
+                <MudIcon Icon="@Icons.Material.Filled.CloudSync" Class="mr-2" />
+                Processing file...
+            </MudText>
+        }
+        
+        @if (_uploadResult != null)
+        {
+            <MudAlert Severity="@(_uploadResult.Success ? Severity.Success : Severity.Error)" 
+                      Class="mt-4" 
+                      Variant="Variant.Filled">
+                @if (_uploadResult.Success)
+                {
+                    <MudText Typo="Typo.h6">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="mr-2" />
+                        Success!
+                    </MudText>
+                    <MudText>
+                        Imported <strong>@_uploadResult.RecordsImported records</strong> in @_uploadResult.ProcessingTime ms
+                    </MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.h6">Upload Failed:</MudText>
+                    @foreach (var error in _uploadResult.ErrorMessages)
+                    {
+                        <MudText>• @error</MudText>
+                    }
+                }
+                
+                @if (_uploadResult.Warnings.Any())
+                {
+                    <MudText Class="mt-2" Typo="Typo.subtitle2">Warnings:</MudText>
+                    @foreach (var warning in _uploadResult.Warnings)
+                    {
+                        <MudText>• @warning</MudText>
+                    }
+                }
+            </MudAlert>
+            
+            @if (_uploadResult.Success && _uploadResult.DocumentId.HasValue)
+            {
+                <MudStack Row="true" Class="mt-3">
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               StartIcon="@Icons.Material.Filled.Visibility"
+                               OnClick="ViewDashboard">
+                        View Dashboard
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" 
+                               Color="Color.Primary" 
+                               StartIcon="@Icons.Material.Filled.Upload"
+                               OnClick="UploadAnother">
+                        Upload Another
+                    </MudButton>
+                </MudStack>
+            }
+        }
+    </MudCardContent>
+</MudCard>
+
+<!-- Supported File Types Info -->
+<MudGrid Class="mt-4">
+    <MudItem xs="12">
+        <MudText Typo="Typo.h6" Class="mb-2">Supported File Types</MudText>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="1">
+            <MudCardContent>
+                <MudStack AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@Icons.Material.Filled.TableChart" Size="Size.Large" Color="Color.Success" />
+                    <MudText Typo="Typo.h6">Excel Files</MudText>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success">.xlsx, .xls</MudChip>
+                    <MudText Typo="Typo.body2" Align="Align.Center">
+                        Structured data with columns for Account Name, Amount, Period, Category
+                    </MudText>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="1">
+            <MudCardContent>
+                <MudStack AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Large" Color="Color.Info" />
+                    <MudText Typo="Typo.h6">CSV Files</MudText>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info">.csv</MudChip>
+                    <MudText Typo="Typo.body2" Align="Align.Center">
+                        Comma-separated values with proper headers
+                    </MudText>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="1">
+            <MudCardContent>
+                <MudStack AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Size="Size.Large" Color="Color.Error" />
+                    <MudText Typo="Typo.h6">PDF Files</MudText>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error">.pdf</MudChip>
+                    <MudText Typo="Typo.body2" Align="Align.Center">
+                        Financial statements with AI vision extraction
+                    </MudText>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private IBrowserFile? _selectedFile;
+    private bool _isProcessing;
+    private UploadResultDto? _uploadResult;
+    
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        _selectedFile = e.File;
+        _uploadResult = null;
+        
+        if (_selectedFile != null)
+        {
+            await ProcessFile(_selectedFile);
+        }
+    }
+    
+    private async Task ProcessFile(IBrowserFile file)
+    {
+        try
+        {
+            _isProcessing = true;
+            
+            var extension = Path.GetExtension(file.Name).ToLower();
+            var fileType = extension switch
+            {
+                ".xlsx" or ".xls" => "Excel",
+                ".csv" => "CSV",
+                ".pdf" => "PDF",
+                _ => "Unknown"
+            };
+            
+            var maxFileSize = 50 * 1024 * 1024; // 50MB
+            using var stream = file.OpenReadStream(maxFileSize);
+            
+            _uploadResult = await DocumentProcessor.ProcessDocumentAsync(stream, file.Name, fileType);
+            
+            if (_uploadResult.Success)
+            {
+                Snackbar.Add($"Successfully imported {_uploadResult.RecordsImported} records!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("File upload failed. Please check the errors.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            _uploadResult = new UploadResultDto
+            {
+                Success = false,
+                FileName = file.Name,
+                ErrorMessages = new List<string> { ex.Message }
+            };
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+    
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        
+        return $"{len:0.##} {sizes[order]}";
+    }
+    
+    private void ViewDashboard()
+    {
+        Navigation.NavigateTo("/");
+    }
+    
+    private void UploadAnother()
+    {
+        _selectedFile = null;
+        _uploadResult = null;
+    }
+}

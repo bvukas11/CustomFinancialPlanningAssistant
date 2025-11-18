@@ -1,0 +1,251 @@
+@page "/ai-test"
+@using CustomFinancialPlanningAssistant.Services.AI
+@using CustomFinancialPlanningAssistant.Core.Entities
+@inject ILlamaService LlamaService
+@inject ILogger<AITest> Logger
+@rendermode InteractiveServer
+
+<PageTitle>AI Service Test</PageTitle>
+
+<h3>AI Service Test Dashboard</h3>
+
+<!-- Service Status -->
+<div style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+    <h4>Service Status</h4>
+    <button @onclick="CheckServiceStatus" disabled="@isCheckingStatus">
+        @if (isCheckingStatus) { <span>Checking...</span> } else { <span>Refresh Status</span> }
+    </button>
+    
+    <div style="margin-top: 15px;">
+        <p><strong>Ollama Service:</strong> 
+            @if (isServiceAvailable)
+            {
+                <span style="color: green;">? Online</span>
+            }
+            else
+            {
+                <span style="color: red;">? Offline</span>
+            }
+        </p>
+        <p><strong>Available Models:</strong> @availableModels.Count</p>
+        @if (availableModels.Any())
+        {
+            <p><strong>Models:</strong> @string.Join(", ", availableModels)</p>
+        }
+        <p><strong>Last Check:</strong> @lastCheckTime.ToString("HH:mm:ss")</p>
+    </div>
+</div>
+
+<!-- Quick Test -->
+<div style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+    <h4>Quick AI Test</h4>
+    
+    <div style="margin-bottom: 15px;">
+        <label>Test Prompt:</label>
+        <textarea @bind="testPrompt" rows="3" style="width: 100%; padding: 8px;"></textarea>
+    </div>
+    
+    <div style="margin-bottom: 15px;">
+        <label>Model:</label>
+        <select @bind="selectedModel" style="width: 100%; padding: 8px;">
+            <option value="llama3.2">llama3.2 (Default)</option>
+            <option value="qwen-offline">qwen-offline (Alternative)</option>
+            <option value="llama3.2-vision">llama3.2-vision (Vision)</option>
+        </select>
+    </div>
+    
+    <button @onclick="TestAI" disabled="@isGenerating" style="padding: 10px 20px;">
+        @if (isGenerating) { <span>? Generating...</span> } else { <span>Test AI</span> }
+    </button>
+    
+    @if (!string.IsNullOrEmpty(response))
+    {
+        <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 4px;">
+            <h5>Response:</h5>
+            <p style="white-space: pre-wrap;">@response</p>
+            @if (executionTime > 0)
+            {
+                <p style="font-size: 0.9em; color: #666;"><em>Execution Time: @executionTime ms</em></p>
+            }
+        </div>
+    }
+    
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div style="margin-top: 15px; padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
+            <p style="color: #856404; white-space: pre-wrap;">@errorMessage</p>
+        </div>
+    }
+</div>
+
+<!-- Financial Analysis Test -->
+<div style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+    <h4>Financial Analysis Test</h4>
+    
+    <div style="margin-bottom: 15px;">
+        <label>Analysis Type:</label>
+        <select @bind="selectedAnalysisType" style="width: 100%; padding: 8px;">
+            <option value="summary">Financial Summary</option>
+            <option value="trends">Trend Analysis</option>
+            <option value="anomaly">Anomaly Detection</option>
+            <option value="ratios">Ratio Analysis</option>
+            <option value="cashflow">Cash Flow Analysis</option>
+        </select>
+    </div>
+    
+    <button @onclick="TestFinancialAnalysis" disabled="@isGenerating" style="padding: 10px 20px;">
+        @if (isGenerating) { <span>? Analyzing...</span> } else { <span>Run Analysis</span> }
+    </button>
+    
+    @if (!string.IsNullOrEmpty(analysisResult))
+    {
+        <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 4px;">
+            <h5>Analysis Result:</h5>
+            <p style="white-space: pre-wrap;">@analysisResult</p>
+        </div>
+    }
+</div>
+
+<!-- Sample Data -->
+<div style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+    <h4>Sample Test Data</h4>
+    <p>Using the following sample financial data for analysis tests:</p>
+    
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background-color: #f0f0f0;">
+                <th style="padding: 10px; border: 1px solid #ddd;">Account</th>
+                <th style="padding: 10px; border: 1px solid #ddd;">Category</th>
+                <th style="padding: 10px; border: 1px solid #ddd;">Period</th>
+                <th style="padding: 10px; border: 1px solid #ddd;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in sampleData)
+            {
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">@item.AccountName</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">@item.Category</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">@item.Period</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">@item.Amount.ToString("C2")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private bool isServiceAvailable = false;
+    private bool isCheckingStatus = false;
+    private bool isGenerating = false;
+    private List<string> availableModels = new();
+    private DateTime lastCheckTime = DateTime.Now;
+    private string testPrompt = "Explain the importance of cash flow analysis in 2-3 sentences.";
+    private string selectedModel = "llama3.2";
+    private string response = "";
+    private string errorMessage = "";
+    private long executionTime = 0;
+    private string selectedAnalysisType = "summary";
+    private string analysisResult = "";
+    private List<FinancialData> sampleData = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        InitializeSampleData();
+        await CheckServiceStatus();
+    }
+
+    private void InitializeSampleData()
+    {
+        sampleData = new List<FinancialData>
+        {
+            new() { Id = 1, DocumentId = 1, AccountName = "Product Sales Revenue", AccountCode = "4000", 
+                    Category = "Revenue", SubCategory = "Sales", Period = "2024-Q1", Amount = 150000.00m, 
+                    Currency = "USD", DateRecorded = DateTime.UtcNow.AddDays(-30) },
+            new() { Id = 2, DocumentId = 1, AccountName = "Service Revenue", AccountCode = "4100", 
+                    Category = "Revenue", SubCategory = "Services", Period = "2024-Q1", Amount = 80000.00m, 
+                    Currency = "USD", DateRecorded = DateTime.UtcNow.AddDays(-30) },
+            new() { Id = 3, DocumentId = 1, AccountName = "Salaries and Wages", AccountCode = "6000", 
+                    Category = "Expense", SubCategory = "Personnel", Period = "2024-Q1", Amount = 95000.00m, 
+                    Currency = "USD", DateRecorded = DateTime.UtcNow.AddDays(-30) },
+            new() { Id = 4, DocumentId = 1, AccountName = "Office Rent", AccountCode = "6200", 
+                    Category = "Expense", SubCategory = "Facilities", Period = "2024-Q1", Amount = 25000.00m, 
+                    Currency = "USD", DateRecorded = DateTime.UtcNow.AddDays(-30) },
+            new() { Id = 5, DocumentId = 1, AccountName = "Marketing Expenses", AccountCode = "6700", 
+                    Category = "Expense", SubCategory = "Marketing", Period = "2024-Q1", Amount = 35000.00m, 
+                    Currency = "USD", DateRecorded = DateTime.UtcNow.AddDays(-30) }
+        };
+    }
+
+    private async Task CheckServiceStatus()
+    {
+        isCheckingStatus = true;
+        errorMessage = "";
+        try
+        {
+            isServiceAvailable = await LlamaService.IsServiceAvailableAsync();
+            if (isServiceAvailable) availableModels = await LlamaService.GetAvailableModelsAsync();
+            else errorMessage = "Ollama service is not available. Please ensure Ollama is running at http://localhost:11434";
+            lastCheckTime = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+            isServiceAvailable = false;
+        }
+        finally
+        {
+            isCheckingStatus = false;
+        }
+    }
+
+    private async Task TestAI()
+    {
+        isGenerating = true;
+        response = "";
+        errorMessage = "";
+        executionTime = 0;
+        try
+        {
+            var startTime = DateTime.UtcNow;
+            response = await LlamaService.GenerateResponseAsync(testPrompt, selectedModel);
+            executionTime = (long)(DateTime.UtcNow - startTime).TotalMilliseconds;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+
+    private async Task TestFinancialAnalysis()
+    {
+        isGenerating = true;
+        analysisResult = "";
+        errorMessage = "";
+        try
+        {
+            analysisResult = selectedAnalysisType switch
+            {
+                "summary" => await LlamaService.GenerateSummaryAsync(sampleData),
+                "trends" => await LlamaService.AnalyzeTrendsAsync(sampleData, "2024-Q1"),
+                "anomaly" => await LlamaService.DetectAnomaliesAsync(sampleData),
+                "ratios" => await LlamaService.AnalyzeRatiosAsync(new Dictionary<string, decimal>
+                    { { "Current Ratio", 2.5m }, { "Debt-to-Equity", 0.65m }, { "Net Profit Margin", 0.18m } }),
+                "cashflow" => await LlamaService.AnalyzeCashFlowAsync(sampleData),
+                _ => "Unknown analysis type"
+            };
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+}

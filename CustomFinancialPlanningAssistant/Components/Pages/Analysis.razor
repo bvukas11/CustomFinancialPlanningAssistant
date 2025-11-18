@@ -1,0 +1,133 @@
+@page "/analysis"
+@rendermode InteractiveServer
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Analysis</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Financial Analysis</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Select a document to analyze</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_documents.Any())
+{
+    <MudGrid>
+        @foreach (var doc in _documents.Take(6))
+        {
+            <MudItem xs="12" md="6" lg="4">
+                <MudCard Elevation="2" Class="cursor-pointer" Style="height: 100%">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">@doc.FileName</MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudIcon Icon="@GetFileIcon(doc.FileType)" Color="Color.Primary" />
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudText Typo="Typo.body2">Uploaded: @doc.UploadDate.ToString("g")</MudText>
+                        <MudText Typo="Typo.body2">Records: @doc.FinancialDataRecords.Count</MudText>
+                        <MudChip T="string" Color="GetStatusColor(doc.Status)" Size="Size.Small" Class="mt-2">
+                            @doc.Status
+                        </MudChip>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Text" 
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Analytics"
+                                   OnClick="@(() => ShowAnalysis(doc.Id))">
+                            Analyze
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    <MudAlert Severity="Severity.Info">
+        <MudText>No documents available for analysis.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/upload" Class="mt-2">
+            Upload Document
+        </MudButton>
+    </MudAlert>
+}
+
+@code {
+    private bool _isLoading = true;
+    private List<FinancialDocument> _documents = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocuments();
+    }
+    
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            _isLoading = true;
+            var docs = await DocumentRepo.GetAllAsync();
+            _documents = new List<FinancialDocument>();
+            
+            foreach (var doc in docs ?? Enumerable.Empty<FinancialDocument>())
+            {
+                try
+                {
+                    var fullDoc = await DocumentRepo.GetWithDataAsync(doc.Id);
+                    if (fullDoc != null)
+                    {
+                        _documents.Add(fullDoc);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log but continue
+                    Snackbar.Add($"Error loading document {doc.FileName}: {ex.Message}", Severity.Warning);
+                }
+            }
+            _documents = _documents.OrderByDescending(d => d.UploadDate).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            _documents = new List<FinancialDocument>();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+    
+    private string GetFileIcon(string fileType)
+    {
+        return fileType switch
+        {
+            "Excel" => Icons.Material.Filled.TableChart,
+            "CSV" => Icons.Material.Filled.Description,
+            "PDF" => Icons.Material.Filled.PictureAsPdf,
+            _ => Icons.Material.Filled.InsertDriveFile
+        };
+    }
+    
+    private Color GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Analyzed" => Color.Success,
+            "Processing" => Color.Info,
+            "Error" => Color.Error,
+            _ => Color.Default
+        };
+    }
+    
+    private void ShowAnalysis(int documentId)
+    {
+        Navigation.NavigateTo($"/analysis/{documentId}");
+    }
+}

@@ -1,0 +1,203 @@
+@page "/documents"
+@rendermode InteractiveServer
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Documents</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Financial Documents</MudText>
+
+<MudCard Elevation="2">
+    <MudCardHeader>
+        <MudGrid>
+            <MudItem xs="12" md="8">
+                <MudTextField @bind-Value="_searchTerm" 
+                              Label="Search documents" 
+                              Variant="Variant.Outlined" 
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true"
+                              DebounceInterval="300"
+                              OnDebounceIntervalElapsed="FilterDocuments" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Href="/upload">
+                    Upload New Document
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardHeader>
+    <MudCardContent>
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+            <MudText Align="Align.Center" Class="mt-2">Loading documents...</MudText>
+        }
+        else if (_filteredDocuments.Any())
+        {
+            <MudTable Items="_filteredDocuments" 
+                      Hover="true" 
+                      Breakpoint="Breakpoint.Sm"
+                      Dense="true"
+                      FixedHeader="true"
+                      Height="500px">
+                <HeaderContent>
+                    <MudTh>File Name</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Upload Date</MudTh>
+                    <MudTh>Records</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="File Name">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@GetFileIcon(context.FileType)" Size="Size.Small" />
+                            <MudText>@context.FileName</MudText>
+                        </MudStack>
+                    </MudTd>
+                    <MudTd DataLabel="Type">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@context.FileType</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Upload Date">@context.UploadDate.ToString("g")</MudTd>
+                    <MudTd DataLabel="Records">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info">
+                            @context.FinancialDataRecords.Count
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Color="GetStatusColor(context.Status)" Size="Size.Small">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
+                                           Size="Size.Small"
+                                           OnClick="@(() => ViewDocument(context.Id))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteDocument(context.Id))" />
+                        </MudButtonGroup>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Filled">
+                <MudText>No documents found. <MudLink Href="/upload" Color="Color.Inherit"><strong>Upload your first document</strong></MudLink></MudText>
+            </MudAlert>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private bool _isLoading = true;
+    private List<FinancialDocument> _allDocuments = new();
+    private List<FinancialDocument> _filteredDocuments = new();
+    private string _searchTerm = "";
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocuments();
+    }
+    
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            _isLoading = true;
+            var docs = await DocumentRepo.GetAllAsync();
+            _allDocuments = docs?.ToList() ?? new List<FinancialDocument>();
+            
+            // Load with data for each document
+            _allDocuments = new List<FinancialDocument>();
+            foreach (var doc in docs ?? Enumerable.Empty<FinancialDocument>())
+            {
+                try
+                {
+                    var fullDoc = await DocumentRepo.GetWithDataAsync(doc.Id);
+                    if (fullDoc != null)
+                    {
+                        _allDocuments.Add(fullDoc);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log but continue with other documents
+                    Snackbar.Add($"Error loading document {doc.FileName}: {ex.Message}", Severity.Warning);
+                }
+            }
+            FilterDocuments();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading documents: {ex.Message}", Severity.Error);
+            _allDocuments = new List<FinancialDocument>();
+            _filteredDocuments = new List<FinancialDocument>();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+    
+    private void FilterDocuments()
+    {
+        _filteredDocuments = _allDocuments
+            .Where(d => string.IsNullOrWhiteSpace(_searchTerm) || 
+                        d.FileName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(d => d.UploadDate)
+            .ToList();
+    }
+    
+    private string GetFileIcon(string fileType)
+    {
+        return fileType switch
+        {
+            "Excel" => Icons.Material.Filled.TableChart,
+            "CSV" => Icons.Material.Filled.Description,
+            "PDF" => Icons.Material.Filled.PictureAsPdf,
+            _ => Icons.Material.Filled.InsertDriveFile
+        };
+    }
+    
+    private Color GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Analyzed" => Color.Success,
+            "Processing" => Color.Info,
+            "Error" => Color.Error,
+            "Uploaded" => Color.Default,
+            _ => Color.Default
+        };
+    }
+    
+    private void ViewDocument(int id)
+    {
+        Navigation.NavigateTo($"/analysis/{id}");
+    }
+    
+    private async Task DeleteDocument(int id)
+    {
+        try
+        {
+            await DocumentRepo.DeleteAsync(id);
+            await DocumentRepo.SaveChangesAsync();
+            await LoadDocuments();
+            Snackbar.Add("Document deleted successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting document: {ex.Message}", Severity.Error);
+        }
+    }
+}

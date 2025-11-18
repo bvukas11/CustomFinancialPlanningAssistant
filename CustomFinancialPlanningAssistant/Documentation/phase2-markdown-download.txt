@@ -1,0 +1,801 @@
+# Financial Analysis Assistant - PHASE 2: Database & Repository Layer
+
+## Overview
+This phase implements the data access layer including Entity Framework Core DbContext, repository pattern, and database configuration.
+
+**Estimated Time:** 2-3 hours  
+**Prerequisites:** Phase 1 completed successfully  
+**Dependencies:** Entity Framework Core packages installed
+
+---
+
+## Step 2.1: Create Database Context
+
+### Copilot Prompt for AppDbContext:
+```
+In FinancialAnalysisAssistant.Infrastructure/Data/, create AppDbContext.cs with the following requirements:
+
+Create a class named AppDbContext that inherits from DbContext with:
+
+1. DbSet properties for all entities:
+   - DbSet<FinancialDocument> FinancialDocuments
+   - DbSet<FinancialData> FinancialDataRecords
+   - DbSet<AIAnalysis> AIAnalyses
+   - DbSet<Report> Reports
+
+2. Constructor that accepts DbContextOptions<AppDbContext> and passes it to base class
+
+3. Override OnModelCreating method to configure:
+   
+   For FinancialDocument:
+   - Primary key: Id
+   - Index on Status for faster queries
+   - Index on UploadDate (descending) for recent document queries
+   - Default value for UploadDate: DateTime.UtcNow
+   - Relationship: HasMany FinancialDataRecords, WithOne Document, OnDelete Cascade
+   - Relationship: HasMany AIAnalyses, WithOne Document, OnDelete Cascade
+
+   For FinancialData:
+   - Primary key: Id
+   - Foreign key: DocumentId references FinancialDocuments.Id
+   - Decimal precision: Amount column with precision(18,2)
+   - Index on Period for filtering by time period
+   - Index on Category for category-based queries
+   - Composite index on (DocumentId, Period) for common query patterns
+
+   For AIAnalysis:
+   - Primary key: Id
+   - Foreign key: DocumentId references FinancialDocuments.Id
+   - Index on CreatedDate (descending)
+   - Index on AnalysisType
+   - Default value for CreatedDate: DateTime.UtcNow
+
+   For Report:
+   - Primary key: Id
+   - Index on ReportType
+   - Index on GeneratedDate (descending)
+   - Default value for GeneratedDate: DateTime.UtcNow
+
+4. Add XML documentation comments explaining the context and its purpose
+
+5. Include using statements for:
+   - Microsoft.EntityFrameworkCore
+   - FinancialAnalysisAssistant.Core.Entities
+```
+
+### Expected Output Structure:
+```csharp
+using Microsoft.EntityFrameworkCore;
+using FinancialAnalysisAssistant.Core.Entities;
+
+namespace FinancialAnalysisAssistant.Infrastructure.Data
+{
+    /// <summary>
+    /// Database context for Financial Analysis Assistant application
+    /// </summary>
+    public class AppDbContext : DbContext
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+        public DbSet<FinancialDocument> FinancialDocuments { get; set; }
+        // ... other DbSets
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            // Configuration here
+        }
+    }
+}
+```
+
+---
+
+## Step 2.2: Configure Connection String
+
+### Copilot Prompt for appsettings.json:
+```
+In FinancialAnalysisAssistant.Web/appsettings.json, add the following configuration:
+
+Add a ConnectionStrings section with:
+- "DefaultConnection" for SQL Server using LocalDB
+- Database name: "FinancialAnalysisDB"
+- Trusted_Connection: True
+- MultipleActiveResultSets: True (for better performance)
+
+Also add a DatabaseSettings section with:
+- "Provider": "SqlServer" (or "Sqlite" for alternative)
+- "CommandTimeout": 30
+- "EnableDetailedErrors": true (for development only)
+- "EnableSensitiveDataLogging": false (for development, false in production)
+
+Format as valid JSON with proper nesting
+```
+
+### Alternative SQLite Configuration:
+```
+For SQLite (lighter weight option for development):
+
+ConnectionString: "Data Source=FinancialAnalysis.db"
+
+Note: Change the NuGet package in Infrastructure project from 
+Microsoft.EntityFrameworkCore.SqlServer to 
+Microsoft.EntityFrameworkCore.Sqlite if using SQLite
+```
+
+---
+
+## Step 2.3: Register DbContext in Program.cs
+
+### Copilot Prompt for Program.cs Configuration:
+```
+In FinancialAnalysisAssistant.Web/Program.cs, add the following configuration after var builder = WebApplication.CreateBuilder(args):
+
+1. Add DbContext registration:
+   - Register AppDbContext with dependency injection
+   - Configure to use SQL Server (or SQLite)
+   - Read connection string from configuration
+   - Enable detailed errors in development environment only
+   - Enable sensitive data logging in development only
+   - Set command timeout from configuration
+
+2. Add using statements for:
+   - Microsoft.EntityFrameworkCore
+   - FinancialAnalysisAssistant.Infrastructure.Data
+
+3. The registration should look like:
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    if (builder.Environment.IsDevelopment())
+    {
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+               .EnableDetailedErrors()
+               .EnableSensitiveDataLogging();
+    }
+    else
+    {
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+    }
+});
+```
+
+---
+
+## Step 2.4: Create Generic Repository Interface
+
+### Copilot Prompt for IRepository Interface:
+```
+In FinancialAnalysisAssistant.Infrastructure/Repositories/, create IRepository.cs:
+
+Create a generic repository interface with the following methods:
+
+1. Read operations:
+   - Task<T?> GetByIdAsync<T>(int id) where T : class
+   - Task<IEnumerable<T>> GetAllAsync<T>() where T : class
+   - Task<IEnumerable<T>> FindAsync<T>(Expression<Func<T, bool>> predicate) where T : class
+   - Task<T?> FirstOrDefaultAsync<T>(Expression<Func<T, bool>> predicate) where T : class
+   - Task<int> CountAsync<T>() where T : class
+   - Task<int> CountAsync<T>(Expression<Func<T, bool>> predicate) where T : class
+   - Task<bool> AnyAsync<T>(Expression<Func<T, bool>> predicate) where T : class
+
+2. Write operations:
+   - Task<T> AddAsync<T>(T entity) where T : class
+   - Task AddRangeAsync<T>(IEnumerable<T> entities) where T : class
+   - Task UpdateAsync<T>(T entity) where T : class
+   - Task UpdateRangeAsync<T>(IEnumerable<T> entities) where T : class
+   - Task DeleteAsync<T>(T entity) where T : class
+   - Task DeleteRangeAsync<T>(IEnumerable<T> entities) where T : class
+
+3. Transaction operations:
+   - Task<int> SaveChangesAsync()
+   - Task<int> SaveChangesAsync(CancellationToken cancellationToken)
+
+Add XML documentation comments for each method explaining parameters and return values
+
+Include using statements for:
+- System.Linq.Expressions
+- FinancialAnalysisAssistant.Core.Entities
+```
+
+---
+
+## Step 2.5: Implement Generic Repository
+
+### Copilot Prompt for Repository Implementation:
+```
+In FinancialAnalysisAssistant.Infrastructure/Repositories/, create Repository.cs:
+
+Create a generic repository class that implements IRepository with:
+
+1. Private fields:
+   - readonly AppDbContext _context
+   - readonly ILogger<Repository> _logger
+
+2. Constructor:
+   - Inject AppDbContext and ILogger<Repository>
+   - Initialize fields
+
+3. Implement all interface methods using Entity Framework Core:
+   
+   GetByIdAsync:
+   - Use FindAsync on DbSet
+   - Return null if not found
+   - Log the operation
+
+   GetAllAsync:
+   - Use ToListAsync on DbSet
+   - Return all entities
+
+   FindAsync:
+   - Use Where with predicate
+   - Call ToListAsync
+   - Return matching entities
+
+   FirstOrDefaultAsync:
+   - Use FirstOrDefaultAsync with predicate
+   - Return null if not found
+
+   CountAsync (both overloads):
+   - Use CountAsync on DbSet
+   - With or without predicate
+
+   AnyAsync:
+   - Use AnyAsync with predicate
+
+   AddAsync:
+   - Add entity to DbSet
+   - Do NOT call SaveChanges here
+   - Return entity
+
+   AddRangeAsync:
+   - Add multiple entities
+   - Use AddRangeAsync method
+
+   UpdateAsync:
+   - Set entity state to Modified
+   - Use _context.Entry(entity).State = EntityState.Modified
+
+   UpdateRangeAsync:
+   - Update multiple entities
+   - Use UpdateRange method
+
+   DeleteAsync:
+   - Remove entity from DbSet
+   - Use Remove method
+
+   DeleteRangeAsync:
+   - Remove multiple entities
+   - Use RemoveRange method
+
+   SaveChangesAsync (both overloads):
+   - Call _context.SaveChangesAsync
+   - Wrap in try-catch block
+   - Log any errors
+   - Return number of affected rows
+
+4. Add proper error handling:
+   - Try-catch blocks for database operations
+   - Log exceptions with ILogger
+   - Throw DbUpdateException with meaningful messages
+
+5. Include using statements for:
+   - Microsoft.EntityFrameworkCore
+   - Microsoft.Extensions.Logging
+   - System.Linq.Expressions
+   - FinancialAnalysisAssistant.Infrastructure.Data
+```
+
+---
+
+## Step 2.6: Create Specific Repository Interfaces
+
+### Copilot Prompt for IFinancialDocumentRepository:
+```
+In FinancialAnalysisAssistant.Infrastructure/Repositories/, create IFinancialDocumentRepository.cs:
+
+Create an interface that does NOT inherit from IRepository but includes these specialized methods:
+
+1. Task<FinancialDocument?> GetByIdAsync(int id)
+2. Task<FinancialDocument?> GetWithDataAsync(int id) - includes related FinancialData
+3. Task<FinancialDocument?> GetWithAnalysesAsync(int id) - includes related AIAnalyses
+4. Task<FinancialDocument?> GetCompleteAsync(int id) - includes all related data
+5. Task<IEnumerable<FinancialDocument>> GetAllAsync()
+6. Task<IEnumerable<FinancialDocument>> GetByStatusAsync(string status)
+7. Task<IEnumerable<FinancialDocument>> GetRecentDocumentsAsync(int count)
+8. Task<IEnumerable<FinancialDocument>> GetDocumentsByDateRangeAsync(DateTime startDate, DateTime endDate)
+9. Task<IEnumerable<FinancialDocument>> GetDocumentsByTypeAsync(string fileType)
+10. Task<FinancialDocument> AddAsync(FinancialDocument document)
+11. Task UpdateAsync(FinancialDocument document)
+12. Task DeleteAsync(int id)
+13. Task<int> SaveChangesAsync()
+
+Add XML documentation for each method
+```
+
+### Copilot Prompt for IFinancialDataRepository:
+```
+In FinancialAnalysisAssistant.Infrastructure/Repositories/, create IFinancialDataRepository.cs:
+
+Create an interface with these methods:
+
+1. Task<FinancialData?> GetByIdAsync(int id)
+2. Task<IEnumerable<FinancialData>> GetAllAsync()
+3. Task<IEnumerable<FinancialData>> GetByDocumentIdAsync(int documentId)
+4. Task<IEnumerable<FinancialData>> GetByPeriodAsync(string period)
+5. Task<IEnumerable<FinancialData>> GetByCategoryAsync(string category)
+6. Task<IEnumerable<FinancialData>> GetByDateRangeAsync(DateTime startDate, DateTime endDate)
+7. Task<decimal> GetTotalByCategoryAsync(string category, string period)
+8. Task<decimal> GetTotalByPeriodAsync(string period)
+9. Task<Dictionary<string, decimal>> GetCategorySummaryAsync(string period)
+10. Task<IEnumerable<FinancialData>> GetTopExpensesAsync(int count, string period)
+11. Task<IEnumerable<FinancialData>> AddRangeAsync(IEnumerable<FinancialData> dataRecords)
+12. Task UpdateAsync(FinancialData data)
+13. Task DeleteByDocumentIdAsync(int documentId)
+14. Task<int> SaveChangesAsync()
+
+Add XML documentation for each method
+```
+
+### Copilot Prompt for IAIAnalysisRepository:
+```
+In FinancialAnalysisAssistant.Infrastructure/Repositories/, create IAIAnalysisRepository.cs:
+
+Create an interface with these methods:
+
+1. Task<AIAnalysis?> GetByIdAsync(int id)
+2. Task<IEnumerable<AIAnalysis>> GetAllAsync()
+3. Task<IEnumerable<AIAnalysis>> GetByDocumentIdAsync(int documentId)
+4. Task<IEnumerable<AIAnalysis>> GetByAnalysisTypeAsync(string analysisType)
+5. Task<IEnumerable<AIAnalysis>> GetRecentAnalysesAsync(int count)
+6. Task<IEnumerable<AIAnalysis>> GetByDateRangeAsync(DateTime startDate, DateTime endDate)
+7. Task<double> GetAverageExecutionTimeAsync(string analysisType)
+8. Task<AIAnalysis> AddAsync(AIAnalysis analysis)
+9. Task UpdateRatingAsync(int id, int rating)
+10. Task DeleteAsync(int id)
+11. Task<int> SaveChangesAsync()
+
+Add XML documentation for each method
+```
+
+---
+
+## Step 2.7: Implement Specific Repositories
+
+### Copilot Prompt for FinancialDocumentRepository:
+```
+In FinancialAnalysisAssistant.Infrastructure/Repositories/, create FinancialDocumentRepository.cs:
+
+Create a class that implements IFinancialDocumentRepository with:
+
+1. Constructor:
+   - Inject AppDbContext and ILogger<FinancialDocumentRepository>
+
+2. Implement all interface methods:
+
+   GetByIdAsync:
+   - Use FindAsync to get document by ID
+   - Return null if not found
+
+   GetWithDataAsync:
+   - Use Include(d => d.FinancialDataRecords) to load related data
+   - Use FirstOrDefaultAsync with ID filter
+   - Return document with related financial data
+
+   GetWithAnalysesAsync:
+   - Use Include(d => d.AIAnalyses) to load related analyses
+   - Return document with analyses
+
+   GetCompleteAsync:
+   - Use Include for both FinancialDataRecords and AIAnalyses
+   - Use ThenInclude if needed for nested data
+   - Return complete document with all relations
+
+   GetAllAsync:
+   - Return all documents ordered by UploadDate descending
+   - Use ToListAsync
+
+   GetByStatusAsync:
+   - Filter by Status property
+   - Order by UploadDate descending
+   - Return matching documents
+
+   GetRecentDocumentsAsync:
+   - Order by UploadDate descending
+   - Take specified count
+   - Return recent documents
+
+   GetDocumentsByDateRangeAsync:
+   - Filter where UploadDate >= startDate AND UploadDate <= endDate
+   - Order by UploadDate descending
+
+   GetDocumentsByTypeAsync:
+   - Filter by FileType property
+   - Order by UploadDate descending
+
+   AddAsync:
+   - Add document to DbSet
+   - Do not save changes here
+   - Return added document
+
+   UpdateAsync:
+   - Set entity state to Modified
+   - Do not save changes here
+
+   DeleteAsync:
+   - Find document by ID
+   - Remove if found
+   - Throw exception if not found
+
+   SaveChangesAsync:
+   - Call _context.SaveChangesAsync
+   - Return affected row count
+   - Wrap in try-catch with logging
+
+3. Add comprehensive error handling and logging for each method
+
+4. Include using statements for:
+   - Microsoft.EntityFrameworkCore
+   - Microsoft.Extensions.Logging
+   - FinancialAnalysisAssistant.Core.Entities
+   - FinancialAnalysisAssistant.Infrastructure.Data
+```
+
+### Copilot Prompt for FinancialDataRepository:
+```
+In FinancialAnalysisAssistant.Infrastructure/Repositories/, create FinancialDataRepository.cs:
+
+Create a class implementing IFinancialDataRepository with:
+
+1. Constructor injecting AppDbContext and ILogger
+
+2. Implement all interface methods:
+
+   GetByDocumentIdAsync:
+   - Filter by DocumentId
+   - Order by DateRecorded
+   - Include Document navigation property
+
+   GetByPeriodAsync:
+   - Filter where Period equals parameter
+   - Order by AccountName
+
+   GetByCategoryAsync:
+   - Filter where Category equals parameter
+   - Order by Amount descending
+
+   GetByDateRangeAsync:
+   - Filter by DateRecorded between startDate and endDate
+   - Order by DateRecorded
+
+   GetTotalByCategoryAsync:
+   - Filter by Category and Period
+   - Use SumAsync on Amount
+   - Return 0 if no records found
+
+   GetTotalByPeriodAsync:
+   - Filter by Period
+   - Sum all Amount values
+
+   GetCategorySummaryAsync:
+   - Group by Category
+   - Sum Amount for each category
+   - Return Dictionary<string, decimal> with category totals
+
+   GetTopExpensesAsync:
+   - Filter by Period
+   - Filter where Category = "Expense"
+   - Order by Amount descending
+   - Take specified count
+
+   AddRangeAsync:
+   - Use AddRangeAsync to add multiple records
+   - Return the collection
+
+   UpdateAsync:
+   - Set entity state to Modified
+
+   DeleteByDocumentIdAsync:
+   - Find all records with DocumentId
+   - Remove all found records
+   - Use RemoveRange
+
+3. Add error handling and logging
+
+4. Include proper using statements
+```
+
+### Copilot Prompt for AIAnalysisRepository:
+```
+In FinancialAnalysisAssistant.Infrastructure/Repositories/, create AIAnalysisRepository.cs:
+
+Create a class implementing IAIAnalysisRepository with:
+
+1. Constructor injecting AppDbContext and ILogger
+
+2. Implement all interface methods:
+
+   GetByDocumentIdAsync:
+   - Filter by DocumentId
+   - Include Document navigation property
+   - Order by CreatedDate descending
+
+   GetByAnalysisTypeAsync:
+   - Filter where AnalysisType equals parameter
+   - Order by CreatedDate descending
+
+   GetRecentAnalysesAsync:
+   - Order by CreatedDate descending
+   - Take specified count
+   - Include Document.FileName for display
+
+   GetByDateRangeAsync:
+   - Filter by CreatedDate between dates
+   - Order by CreatedDate descending
+
+   GetAverageExecutionTimeAsync:
+   - Filter by AnalysisType
+   - Calculate average of ExecutionTime
+   - Return 0 if no records
+
+   AddAsync:
+   - Add analysis to DbSet
+   - Return added entity
+
+   UpdateRatingAsync:
+   - Find analysis by ID
+   - Update Rating property
+   - Save changes
+   - Throw exception if not found
+
+   DeleteAsync:
+   - Find and remove analysis
+   - Throw exception if not found
+
+3. Include error handling and logging
+```
+
+---
+
+## Step 2.8: Register Repositories in Dependency Injection
+
+### Copilot Prompt for DI Registration:
+```
+In FinancialAnalysisAssistant.Web/Program.cs, after the DbContext registration, add:
+
+Register all repository interfaces with their implementations using scoped lifetime:
+
+builder.Services.AddScoped<IFinancialDocumentRepository, FinancialDocumentRepository>();
+builder.Services.AddScoped<IFinancialDataRepository, FinancialDataRepository>();
+builder.Services.AddScoped<IAIAnalysisRepository, AIAnalysisRepository>();
+
+Add using statement:
+using FinancialAnalysisAssistant.Infrastructure.Repositories;
+
+Scoped lifetime is appropriate because:
+- Repositories should live for the duration of a request
+- They depend on DbContext which is also scoped
+- Each request gets its own repository instances
+```
+
+---
+
+## Step 2.9: Create Initial Migration
+
+### Copilot Prompt for Migration Commands:
+```
+Execute the following steps to create and apply the initial database migration:
+
+1. Open Package Manager Console in Visual Studio (Tools → NuGet Package Manager → Package Manager Console)
+
+2. Set Default project to: FinancialAnalysisAssistant.Infrastructure
+
+3. Set Startup project to: FinancialAnalysisAssistant.Web (right-click project → Set as Startup Project)
+
+4. Run command to create migration:
+Add-Migration InitialCreate
+
+This will create a new migration file in Infrastructure/Data/Migrations/ folder
+
+5. Review the generated migration file to ensure it includes:
+   - CreateTable operations for all 4 entities
+   - Proper column definitions with correct data types
+   - Primary key configurations
+   - Foreign key relationships
+   - Indexes as configured in OnModelCreating
+
+6. Apply migration to database:
+Update-Database
+
+This will create the database and apply all migrations
+
+7. Verify database creation:
+   - Open SQL Server Object Explorer in Visual Studio
+   - Locate (localdb)\mssqllocaldb
+   - Expand Databases
+   - Verify "FinancialAnalysisDB" exists with all tables
+
+Alternative using .NET CLI:
+dotnet ef migrations add InitialCreate --project FinancialAnalysisAssistant.Infrastructure --startup-project FinancialAnalysisAssistant.Web
+dotnet ef database update --project FinancialAnalysisAssistant.Infrastructure --startup-project FinancialAnalysisAssistant.Web
+```
+
+### Troubleshooting Migration Issues:
+```
+Common issues and solutions:
+
+Issue: "Build failed"
+Solution: Ensure all projects compile successfully before running migrations
+
+Issue: "No DbContext was found"
+Solution: Verify AppDbContext is registered in Program.cs and Infrastructure project references Core
+
+Issue: "The term 'Add-Migration' is not recognized"
+Solution: Install Microsoft.EntityFrameworkCore.Tools package in Infrastructure project
+
+Issue: "Unable to create database"
+Solution: Check connection string in appsettings.json, ensure SQL Server LocalDB is installed
+
+Issue: "A network-related or instance-specific error"
+Solution: Start SQL Server LocalDB: sqllocaldb start mssqllocaldb
+```
+
+---
+
+## Step 2.10: Create Database Seeding (Optional)
+
+### Copilot Prompt for Seed Data:
+```
+In FinancialAnalysisAssistant.Infrastructure/Data/, create DbInitializer.cs:
+
+Create a static class with a method to seed initial test data:
+
+public static class DbInitializer
+{
+    public static async Task SeedAsync(AppDbContext context)
+    {
+        // Check if database has been seeded
+        if (await context.FinancialDocuments.AnyAsync())
+        {
+            return; // Database has been seeded
+        }
+
+        // Create sample financial document
+        var sampleDoc = new FinancialDocument
+        {
+            FileName = "Sample_Q1_2024.xlsx",
+            FileType = "Excel",
+            UploadDate = DateTime.UtcNow,
+            FileSize = 51200,
+            FilePath = "/uploads/sample.xlsx",
+            Status = "Analyzed",
+            CreatedBy = "System"
+        };
+
+        await context.FinancialDocuments.AddAsync(sampleDoc);
+        await context.SaveChangesAsync();
+
+        // Create sample financial data records
+        var sampleData = new List<FinancialData>
+        {
+            new FinancialData
+            {
+                DocumentId = sampleDoc.Id,
+                AccountName = "Revenue - Product Sales",
+                AccountCode = "4000",
+                Period = "2024-Q1",
+                Amount = 150000.00m,
+                Currency = "USD",
+                Category = "Revenue",
+                SubCategory = "Sales",
+                DateRecorded = DateTime.UtcNow
+            },
+            new FinancialData
+            {
+                DocumentId = sampleDoc.Id,
+                AccountName = "Operating Expenses",
+                AccountCode = "5000",
+                Period = "2024-Q1",
+                Amount = 75000.00m,
+                Currency = "USD",
+                Category = "Expense",
+                SubCategory = "Operations",
+                DateRecorded = DateTime.UtcNow
+            }
+        };
+
+        await context.FinancialDataRecords.AddRangeAsync(sampleData);
+        await context.SaveChangesAsync();
+    }
+}
+
+Then in Program.cs, after app is built but before app.Run(), add:
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await DbInitializer.SeedAsync(context);
+}
+```
+
+---
+
+## Step 2.11: Verification Checklist
+
+Before moving to Phase 3, verify:
+
+- [ ] AppDbContext created with all DbSet properties
+- [ ] Connection string configured in appsettings.json
+- [ ] DbContext registered in Program.cs
+- [ ] IRepository interface created with all methods
+- [ ] Repository base class implemented
+- [ ] All specific repository interfaces created (3 interfaces)
+- [ ] All specific repositories implemented (3 classes)
+- [ ] All repositories registered in DI container
+- [ ] Initial migration created successfully
+- [ ] Database updated and tables created
+- [ ] Database visible in SQL Server Object Explorer
+- [ ] (Optional) Seed data working
+
+**Test the database connection:**
+Run the application and verify no database connection errors appear.
+
+---
+
+## Next Phase Preview
+
+**Phase 3** will cover:
+- AI Service configuration
+- OllamaSharp integration
+- Prompt template creation
+- LlamaService implementation
+
+---
+
+## Troubleshooting
+
+### Database Connection Issues:
+
+**Issue:** Cannot connect to LocalDB  
+**Solution:** 
+```bash
+sqllocaldb info
+sqllocaldb start mssqllocaldb
+```
+
+**Issue:** Migration fails with "pending changes"  
+**Solution:**
+```bash
+dotnet ef database drop --force
+dotnet ef database update
+```
+
+**Issue:** Foreign key constraint errors  
+**Solution:** Check OnModelCreating configuration for proper relationship setup
+
+---
+
+## Files Created This Phase
+
+```
+✓ FinancialAnalysisAssistant.Infrastructure/Data/AppDbContext.cs
+✓ FinancialAnalysisAssistant.Infrastructure/Repositories/IRepository.cs
+✓ FinancialAnalysisAssistant.Infrastructure/Repositories/Repository.cs
+✓ FinancialAnalysisAssistant.Infrastructure/Repositories/IFinancialDocumentRepository.cs
+✓ FinancialAnalysisAssistant.Infrastructure/Repositories/FinancialDocumentRepository.cs
+✓ FinancialAnalysisAssistant.Infrastructure/Repositories/IFinancialDataRepository.cs
+✓ FinancialAnalysisAssistant.Infrastructure/Repositories/FinancialDataRepository.cs
+✓ FinancialAnalysisAssistant.Infrastructure/Repositories/IAIAnalysisRepository.cs
+✓ FinancialAnalysisAssistant.Infrastructure/Repositories/AIAnalysisRepository.cs
+✓ FinancialAnalysisAssistant.Infrastructure/Data/DbInitializer.cs (optional)
+✓ FinancialAnalysisAssistant.Infrastructure/Data/Migrations/[timestamp]_InitialCreate.cs
+```
+
+**Total Files:** 11  
+**Lines of Code:** ~1200-1500 (estimated)
+
+---
+
+## Progress Tracking
+
+**Phase 2 Status:** Ready to implement  
+**Next Phase:** Phase 3 - AI Service Layer  
+**Overall Progress:** 25% (2 of 8 phases)

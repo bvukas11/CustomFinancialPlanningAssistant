@@ -1,0 +1,1004 @@
+# Financial Analysis Assistant - PHASE 7: Report Generation & Export
+
+## Overview
+This phase implements comprehensive report generation capabilities including PDF export, Excel export, customizable templates, and scheduled report generation.
+
+**Estimated Time:** 3-4 hours  
+**Prerequisites:** Phase 1-6 completed  
+**Dependencies:** iTextSharp, ClosedXML packages already installed
+
+---
+
+## Step 7.1: Create Report Service Interface
+
+### Copilot Prompt for IReportService:
+```
+In FinancialAnalysisAssistant.Services/Reports/, create IReportService.cs:
+
+Create an interface for report generation with these methods:
+
+1. PDF Report Generation:
+   - Task<byte[]> GeneratePdfReportAsync(int documentId, ReportType reportType)
+   - Task<byte[]> GenerateCustomPdfReportAsync(int documentId, ReportTemplate template)
+   - Task<byte[]> GenerateComparisonPdfAsync(int documentId1, int documentId2)
+
+2. Excel Report Generation:
+   - Task<byte[]> GenerateExcelReportAsync(int documentId, ReportType reportType)
+   - Task<byte[]> GenerateExcelSummaryAsync(List<int> documentIds)
+   - Task<byte[]> ExportFinancialDataAsync(int documentId)
+
+3. Report Management:
+   - Task<Report> SaveReportAsync(int documentId, string title, string content, ReportType reportType)
+   - Task<Report> GetReportByIdAsync(int reportId)
+   - Task<List<Report>> GetReportsByDocumentIdAsync(int documentId)
+   - Task<List<Report>> GetAllReportsAsync()
+   - Task DeleteReportAsync(int reportId)
+
+4. Report Templates:
+   - Task<ReportTemplate> CreateTemplateAsync(string name, string content)
+   - Task<List<ReportTemplate>> GetTemplatesAsync()
+   - Task<ReportTemplate> GetTemplateByIdAsync(int templateId)
+
+Add XML documentation for all methods
+```
+
+---
+
+## Step 7.2: Create Report DTOs and Models
+
+### Copilot Prompt for Report Models:
+```
+In FinancialAnalysisAssistant.Core/DTOs/, create report-related models:
+
+1. ReportTemplate.cs:
+public class ReportTemplate
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public string TemplateSections { get; set; } // JSON string
+    public bool IncludeSummary { get; set; }
+    public bool IncludeRatios { get; set; }
+    public bool IncludeTrends { get; set; }
+    public bool IncludeCharts { get; set; }
+    public bool IncludeAIInsights { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime? LastModified { get; set; }
+}
+
+2. ReportGenerationOptions.cs:
+public class ReportGenerationOptions
+{
+    public int DocumentId { get; set; }
+    public ReportType ReportType { get; set; }
+    public bool IncludeSummary { get; set; } = true;
+    public bool IncludeDetailedData { get; set; } = true;
+    public bool IncludeRatios { get; set; } = true;
+    public bool IncludeCharts { get; set; } = true;
+    public bool IncludeAIInsights { get; set; } = false;
+    public string Title { get; set; }
+    public string Subtitle { get; set; }
+    public string CompanyName { get; set; }
+    public DateTime? ReportDate { get; set; }
+}
+
+3. Add to Core/Enums/ReportType.cs:
+public enum ReportType
+{
+    Summary = 0,
+    Detailed = 1,
+    Comparison = 2,
+    Trend = 3,
+    RatioAnalysis = 4,
+    Custom = 5
+}
+
+Add XML documentation for all properties
+```
+
+---
+
+## Step 7.3: Implement PDF Report Service (Part 1 - Setup)
+
+### Copilot Prompt for PDF Report Service Setup:
+```
+In FinancialAnalysisAssistant.Services/Reports/, create PdfReportService.cs:
+
+Part 1 - Class setup and basic PDF generation:
+
+using iTextSharp.text;
+using iTextSharp.text.pdf;
+using System.IO;
+using Microsoft.Extensions.Logging;
+using FinancialAnalysisAssistant.Core.Entities;
+using FinancialAnalysisAssistant.Core.DTOs;
+using FinancialAnalysisAssistant.Services.Financial;
+
+public class PdfReportService
+{
+    private readonly IFinancialService _financialService;
+    private readonly IFinancialDocumentRepository _documentRepo;
+    private readonly ILogger<PdfReportService> _logger;
+    
+    // PDF Styling Constants
+    private readonly Font _titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 18, BaseColor.DARK_GRAY);
+    private readonly Font _headingFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 14, BaseColor.BLACK);
+    private readonly Font _subheadingFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 12, BaseColor.DARK_GRAY);
+    private readonly Font _normalFont = FontFactory.GetFont(FontFactory.HELVETICA, 10, BaseColor.BLACK);
+    private readonly Font _smallFont = FontFactory.GetFont(FontFactory.HELVETICA, 8, BaseColor.GRAY);
+    
+    public PdfReportService(
+        IFinancialService financialService,
+        IFinancialDocumentRepository documentRepo,
+        ILogger<PdfReportService> logger)
+    {
+        _financialService = financialService;
+        _documentRepo = documentRepo;
+        _logger = logger;
+    }
+    
+    public async Task<byte[]> GeneratePdfReportAsync(int documentId, ReportGenerationOptions options)
+    {
+        try
+        {
+            _logger.LogInformation($"Generating PDF report for document {documentId}");
+            
+            using var memoryStream = new MemoryStream();
+            using var document = new Document(PageSize.A4, 50, 50, 25, 25);
+            using var writer = PdfWriter.GetInstance(document, memoryStream);
+            
+            document.Open();
+            
+            // Add header
+            AddHeader(document, options);
+            
+            // Get data
+            var summary = await _financialService.GetFinancialSummaryAsync(documentId);
+            
+            // Add sections based on options
+            if (options.IncludeSummary)
+            {
+                AddSummarySection(document, summary);
+            }
+            
+            if (options.IncludeRatios)
+            {
+                var ratios = await _financialService.CalculateFinancialRatiosAsync(documentId);
+                AddRatiosSection(document, ratios);
+            }
+            
+            if (options.IncludeDetailedData)
+            {
+                var doc = await _documentRepo.GetWithDataAsync(documentId);
+                AddDetailedDataSection(document, doc.FinancialDataRecords.ToList());
+            }
+            
+            // Add footer
+            AddFooter(document);
+            
+            document.Close();
+            
+            _logger.LogInformation($"PDF report generated successfully");
+            return memoryStream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating PDF report");
+            throw;
+        }
+    }
+    
+    private void AddHeader(Document document, ReportGenerationOptions options)
+    {
+        var title = new Paragraph(options.Title ?? "Financial Analysis Report", _titleFont)
+        {
+            Alignment = Element.ALIGN_CENTER,
+            SpacingAfter = 10
+        };
+        document.Add(title);
+        
+        if (!string.IsNullOrWhiteSpace(options.CompanyName))
+        {
+            var company = new Paragraph(options.CompanyName, _headingFont)
+            {
+                Alignment = Element.ALIGN_CENTER,
+                SpacingAfter = 5
+            };
+            document.Add(company);
+        }
+        
+        var reportDate = new Paragraph($"Report Date: {(options.ReportDate ?? DateTime.Now):MMMM dd, yyyy}", _normalFont)
+        {
+            Alignment = Element.ALIGN_CENTER,
+            SpacingAfter = 20
+        };
+        document.Add(reportDate);
+        
+        // Add horizontal line
+        var line = new LineSeparator(1f, 100f, BaseColor.GRAY, Element.ALIGN_CENTER, -5);
+        document.Add(line);
+        document.Add(new Paragraph(" ") { SpacingAfter = 10 });
+    }
+    
+    private void AddSummarySection(Document document, FinancialSummaryDto summary)
+    {
+        // Section heading
+        var heading = new Paragraph("Financial Summary", _headingFont)
+        {
+            SpacingBefore = 10,
+            SpacingAfter = 10
+        };
+        document.Add(heading);
+        
+        // Create summary table
+        var table = new PdfPTable(2)
+        {
+            WidthPercentage = 100,
+            SpacingAfter = 15
+        };
+        table.SetWidths(new float[] { 2, 1 });
+        
+        // Header cells
+        AddTableHeader(table, "Metric");
+        AddTableHeader(table, "Amount");
+        
+        // Data rows
+        AddTableRow(table, "Total Revenue", summary.TotalRevenue.ToString("C"), new BaseColor(144, 238, 144));
+        AddTableRow(table, "Total Expenses", summary.TotalExpenses.ToString("C"), new BaseColor(255, 182, 193));
+        AddTableRow(table, "Net Income", summary.NetIncome.ToString("C"), 
+            summary.NetIncome > 0 ? new BaseColor(144, 238, 144) : new BaseColor(255, 182, 193));
+        AddTableRow(table, "Total Assets", summary.TotalAssets.ToString("C"));
+        AddTableRow(table, "Total Liabilities", summary.TotalLiabilities.ToString("C"));
+        AddTableRow(table, "Equity", summary.Equity.ToString("C"));
+        
+        document.Add(table);
+        
+        // Add key highlights
+        if (summary.KeyHighlights.Any())
+        {
+            var highlightsHeading = new Paragraph("Key Highlights", _subheadingFont)
+            {
+                SpacingBefore = 5,
+                SpacingAfter = 5
+            };
+            document.Add(highlightsHeading);
+            
+            var list = new List(List.UNORDERED);
+            foreach (var highlight in summary.KeyHighlights)
+            {
+                list.Add(new ListItem(highlight, _normalFont));
+            }
+            document.Add(list);
+        }
+    }
+    
+    private void AddRatiosSection(Document document, Dictionary<string, decimal> ratios)
+    {
+        var heading = new Paragraph("Financial Ratios", _headingFont)
+        {
+            SpacingBefore = 20,
+            SpacingAfter = 10
+        };
+        document.Add(heading);
+        
+        var table = new PdfPTable(2)
+        {
+            WidthPercentage = 100,
+            SpacingAfter = 15
+        };
+        table.SetWidths(new float[] { 2, 1 });
+        
+        AddTableHeader(table, "Ratio");
+        AddTableHeader(table, "Value");
+        
+        foreach (var ratio in ratios)
+        {
+            var formattedName = FormatRatioName(ratio.Key);
+            var formattedValue = ratio.Key.Contains("Ratio") || ratio.Key.Contains("Turnover") 
+                ? ratio.Value.ToString("F2") 
+                : $"{ratio.Value:F2}%";
+            
+            AddTableRow(table, formattedName, formattedValue);
+        }
+        
+        document.Add(table);
+    }
+    
+    private void AddDetailedDataSection(Document document, List<FinancialData> data)
+    {
+        var heading = new Paragraph("Detailed Financial Data", _headingFont)
+        {
+            SpacingBefore = 20,
+            SpacingAfter = 10
+        };
+        document.Add(heading);
+        
+        var table = new PdfPTable(5)
+        {
+            WidthPercentage = 100,
+            SpacingAfter = 15
+        };
+        table.SetWidths(new float[] { 3, 1.5f, 1.5f, 1, 1 });
+        
+        AddTableHeader(table, "Account Name");
+        AddTableHeader(table, "Category");
+        AddTableHeader(table, "Period");
+        AddTableHeader(table, "Amount");
+        AddTableHeader(table, "Currency");
+        
+        foreach (var item in data.OrderBy(d => d.Category).ThenBy(d => d.AccountName))
+        {
+            AddTableCell(table, item.AccountName);
+            AddTableCell(table, item.Category);
+            AddTableCell(table, item.Period);
+            AddTableCell(table, item.Amount.ToString("C"));
+            AddTableCell(table, item.Currency);
+        }
+        
+        document.Add(table);
+    }
+    
+    private void AddFooter(Document document)
+    {
+        var footer = new Paragraph($"Generated on {DateTime.Now:yyyy-MM-dd HH:mm:ss} by Financial Analysis Assistant", _smallFont)
+        {
+            Alignment = Element.ALIGN_CENTER,
+            SpacingBefore = 20
+        };
+        document.Add(footer);
+    }
+    
+    // Helper methods
+    private void AddTableHeader(PdfPTable table, string text)
+    {
+        var cell = new PdfPCell(new Phrase(text, _subheadingFont))
+        {
+            BackgroundColor = new BaseColor(200, 200, 200),
+            Padding = 5,
+            HorizontalAlignment = Element.ALIGN_LEFT
+        };
+        table.AddCell(cell);
+    }
+    
+    private void AddTableRow(PdfPTable table, string label, string value, BaseColor? backgroundColor = null)
+    {
+        var labelCell = new PdfPCell(new Phrase(label, _normalFont))
+        {
+            Padding = 5,
+            BackgroundColor = backgroundColor ?? BaseColor.WHITE
+        };
+        table.AddCell(labelCell);
+        
+        var valueCell = new PdfPCell(new Phrase(value, _normalFont))
+        {
+            Padding = 5,
+            HorizontalAlignment = Element.ALIGN_RIGHT,
+            BackgroundColor = backgroundColor ?? BaseColor.WHITE
+        };
+        table.AddCell(valueCell);
+    }
+    
+    private void AddTableCell(PdfPTable table, string text)
+    {
+        var cell = new PdfPCell(new Phrase(text, _normalFont))
+        {
+            Padding = 3
+        };
+        table.AddCell(cell);
+    }
+    
+    private string FormatRatioName(string ratioKey)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(ratioKey, "([A-Z])", " $1").Trim();
+    }
+}
+```
+
+---
+
+## Step 7.4: Implement Excel Report Service
+
+### Copilot Prompt for Excel Report Service:
+```
+In FinancialAnalysisAssistant.Services/Reports/, create ExcelReportService.cs:
+
+using ClosedXML.Excel;
+using System.IO;
+using Microsoft.Extensions.Logging;
+
+public class ExcelReportService
+{
+    private readonly IFinancialService _financialService;
+    private readonly IFinancialDocumentRepository _documentRepo;
+    private readonly ILogger<ExcelReportService> _logger;
+    
+    public ExcelReportService(
+        IFinancialService financialService,
+        IFinancialDocumentRepository documentRepo,
+        ILogger<ExcelReportService> logger)
+    {
+        _financialService = financialService;
+        _documentRepo = documentRepo;
+        _logger = logger;
+    }
+    
+    public async Task<byte[]> GenerateExcelReportAsync(int documentId, ReportGenerationOptions options)
+    {
+        try
+        {
+            _logger.LogInformation($"Generating Excel report for document {documentId}");
+            
+            using var workbook = new XLWorkbook();
+            
+            // Get data
+            var summary = await _financialService.GetFinancialSummaryAsync(documentId);
+            var document = await _documentRepo.GetWithDataAsync(documentId);
+            
+            // Add Summary Sheet
+            if (options.IncludeSummary)
+            {
+                AddSummarySheet(workbook, summary, options);
+            }
+            
+            // Add Ratios Sheet
+            if (options.IncludeRatios)
+            {
+                var ratios = await _financialService.CalculateFinancialRatiosAsync(documentId);
+                AddRatiosSheet(workbook, ratios);
+            }
+            
+            // Add Detailed Data Sheet
+            if (options.IncludeDetailedData)
+            {
+                AddDetailedDataSheet(workbook, document.FinancialDataRecords.ToList());
+            }
+            
+            // Save to memory stream
+            using var memoryStream = new MemoryStream();
+            workbook.SaveAs(memoryStream);
+            
+            _logger.LogInformation("Excel report generated successfully");
+            return memoryStream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating Excel report");
+            throw;
+        }
+    }
+    
+    private void AddSummarySheet(XLWorkbook workbook, FinancialSummaryDto summary, ReportGenerationOptions options)
+    {
+        var worksheet = workbook.Worksheets.Add("Summary");
+        
+        // Title
+        worksheet.Cell(1, 1).Value = options.Title ?? "Financial Summary Report";
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 16;
+        worksheet.Range(1, 1, 1, 2).Merge();
+        
+        // Report date
+        worksheet.Cell(2, 1).Value = $"Report Date: {DateTime.Now:yyyy-MM-dd}";
+        worksheet.Range(2, 1, 2, 2).Merge();
+        
+        // Headers
+        int row = 4;
+        worksheet.Cell(row, 1).Value = "Metric";
+        worksheet.Cell(row, 2).Value = "Amount";
+        worksheet.Range(row, 1, row, 2).Style.Font.Bold = true;
+        worksheet.Range(row, 1, row, 2).Style.Fill.BackgroundColor = XLColor.LightGray;
+        
+        // Data
+        row++;
+        AddExcelRow(worksheet, row++, "Total Revenue", summary.TotalRevenue, XLColor.LightGreen);
+        AddExcelRow(worksheet, row++, "Total Expenses", summary.TotalExpenses, XLColor.LightPink);
+        AddExcelRow(worksheet, row++, "Net Income", summary.NetIncome, 
+            summary.NetIncome > 0 ? XLColor.LightGreen : XLColor.LightPink);
+        row++;
+        AddExcelRow(worksheet, row++, "Total Assets", summary.TotalAssets);
+        AddExcelRow(worksheet, row++, "Total Liabilities", summary.TotalLiabilities);
+        AddExcelRow(worksheet, row++, "Equity", summary.Equity);
+        
+        // Key Highlights
+        if (summary.KeyHighlights.Any())
+        {
+            row += 2;
+            worksheet.Cell(row, 1).Value = "Key Highlights";
+            worksheet.Cell(row, 1).Style.Font.Bold = true;
+            worksheet.Range(row, 1, row, 2).Merge();
+            
+            row++;
+            foreach (var highlight in summary.KeyHighlights)
+            {
+                worksheet.Cell(row, 1).Value = "• " + highlight;
+                worksheet.Range(row, 1, row, 2).Merge();
+                row++;
+            }
+        }
+        
+        // Auto-fit columns
+        worksheet.Columns().AdjustToContents();
+    }
+    
+    private void AddRatiosSheet(XLWorkbook workbook, Dictionary<string, decimal> ratios)
+    {
+        var worksheet = workbook.Worksheets.Add("Financial Ratios");
+        
+        // Title
+        worksheet.Cell(1, 1).Value = "Financial Ratios Analysis";
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 14;
+        worksheet.Range(1, 1, 1, 2).Merge();
+        
+        // Headers
+        int row = 3;
+        worksheet.Cell(row, 1).Value = "Ratio Name";
+        worksheet.Cell(row, 2).Value = "Value";
+        worksheet.Range(row, 1, row, 2).Style.Font.Bold = true;
+        worksheet.Range(row, 1, row, 2).Style.Fill.BackgroundColor = XLColor.LightGray;
+        
+        // Data
+        row++;
+        foreach (var ratio in ratios)
+        {
+            worksheet.Cell(row, 1).Value = FormatRatioName(ratio.Key);
+            worksheet.Cell(row, 2).Value = ratio.Value;
+            worksheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
+            row++;
+        }
+        
+        worksheet.Columns().AdjustToContents();
+    }
+    
+    private void AddDetailedDataSheet(XLWorkbook workbook, List<FinancialData> data)
+    {
+        var worksheet = workbook.Worksheets.Add("Detailed Data");
+        
+        // Title
+        worksheet.Cell(1, 1).Value = "Detailed Financial Data";
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 14;
+        
+        // Headers
+        int row = 3;
+        string[] headers = { "Account Name", "Account Code", "Category", "Sub Category", "Period", "Amount", "Currency", "Date" };
+        for (int col = 1; col <= headers.Length; col++)
+        {
+            worksheet.Cell(row, col).Value = headers[col - 1];
+            worksheet.Cell(row, col).Style.Font.Bold = true;
+            worksheet.Cell(row, col).Style.Fill.BackgroundColor = XLColor.LightGray;
+        }
+        
+        // Data
+        row++;
+        foreach (var item in data.OrderBy(d => d.Category).ThenBy(d => d.AccountName))
+        {
+            worksheet.Cell(row, 1).Value = item.AccountName;
+            worksheet.Cell(row, 2).Value = item.AccountCode;
+            worksheet.Cell(row, 3).Value = item.Category;
+            worksheet.Cell(row, 4).Value = item.SubCategory;
+            worksheet.Cell(row, 5).Value = item.Period;
+            worksheet.Cell(row, 6).Value = item.Amount;
+            worksheet.Cell(row, 6).Style.NumberFormat.Format = "$#,##0.00";
+            worksheet.Cell(row, 7).Value = item.Currency;
+            worksheet.Cell(row, 8).Value = item.DateRecorded.ToString("yyyy-MM-dd");
+            
+            row++;
+        }
+        
+        // Add filters
+        var dataRange = worksheet.Range(3, 1, row - 1, headers.Length);
+        dataRange.SetAutoFilter();
+        
+        worksheet.Columns().AdjustToContents();
+    }
+    
+    public async Task<byte[]> ExportFinancialDataAsync(int documentId)
+    {
+        _logger.LogInformation($"Exporting financial data for document {documentId}");
+        
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+        
+        using var workbook = new XLWorkbook();
+        AddDetailedDataSheet(workbook, document.FinancialDataRecords.ToList());
+        
+        using var memoryStream = new MemoryStream();
+        workbook.SaveAs(memoryStream);
+        
+        return memoryStream.ToArray();
+    }
+    
+    // Helper methods
+    private void AddExcelRow(IXLWorksheet worksheet, int row, string label, decimal value, XLColor? color = null)
+    {
+        worksheet.Cell(row, 1).Value = label;
+        worksheet.Cell(row, 2).Value = value;
+        worksheet.Cell(row, 2).Style.NumberFormat.Format = "$#,##0.00";
+        
+        if (color.HasValue)
+        {
+            worksheet.Range(row, 1, row, 2).Style.Fill.BackgroundColor = color.Value;
+        }
+    }
+    
+    private string FormatRatioName(string ratioKey)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(ratioKey, "([A-Z])", " $1").Trim();
+    }
+}
+```
+
+---
+
+## Step 7.5: Implement Main Report Service
+
+### Copilot Prompt for ReportService:
+```
+In FinancialAnalysisAssistant.Services/Reports/, create ReportService.cs implementing IReportService:
+
+Combine PDF and Excel services with report management:
+
+public class ReportService : IReportService
+{
+    private readonly PdfReportService _pdfService;
+    private readonly ExcelReportService _excelService;
+    private readonly IFinancialService _financialService;
+    private readonly ILogger<ReportService> _logger;
+    // Note: You'll need to create a Report repository for database operations
+    
+    public ReportService(
+        PdfReportService pdfService,
+        ExcelReportService excelService,
+        IFinancialService financialService,
+        ILogger<ReportService> logger)
+    {
+        _pdfService = pdfService;
+        _excelService = excelService;
+        _financialService = financialService;
+        _logger = logger;
+    }
+    
+    public async Task<byte[]> GeneratePdfReportAsync(int documentId, ReportType reportType)
+    {
+        var options = CreateOptionsForReportType(documentId, reportType);
+        return await _pdfService.GeneratePdfReportAsync(documentId, options);
+    }
+    
+    public async Task<byte[]> GenerateExcelReportAsync(int documentId, ReportType reportType)
+    {
+        var options = CreateOptionsForReportType(documentId, reportType);
+        return await _excelService.GenerateExcelReportAsync(documentId, options);
+    }
+    
+    public async Task<byte[]> ExportFinancialDataAsync(int documentId)
+    {
+        return await _excelService.ExportFinancialDataAsync(documentId);
+    }
+    
+    public async Task<Report> SaveReportAsync(int documentId, string title, string content, ReportType reportType)
+    {
+        var report = new Report
+        {
+            Title = title,
+            ReportType = reportType.ToString(),
+            Content = content,
+            GeneratedDate = DateTime.UtcNow,
+            Parameters = System.Text.Json.JsonSerializer.Serialize(new { DocumentId = documentId })
+        };
+        
+        // Save to database via repository
+        // Implementation depends on having a Report repository
+        
+        return report;
+    }
+    
+    private ReportGenerationOptions CreateOptionsForReportType(int documentId, ReportType reportType)
+    {
+        return reportType switch
+        {
+            ReportType.Summary => new ReportGenerationOptions
+            {
+                DocumentId = documentId,
+                ReportType = reportType,
+                Title = "Financial Summary Report",
+                IncludeSummary = true,
+                IncludeDetailedData = false,
+                IncludeRatios = false
+            },
+            ReportType.Detailed => new ReportGenerationOptions
+            {
+                DocumentId = documentId,
+                ReportType = reportType,
+                Title = "Detailed Financial Report",
+                IncludeSummary = true,
+                IncludeDetailedData = true,
+                IncludeRatios = true
+            },
+            ReportType.RatioAnalysis => new ReportGenerationOptions
+            {
+                DocumentId = documentId,
+                ReportType = reportType,
+                Title = "Financial Ratio Analysis",
+                IncludeSummary = true,
+                IncludeDetailedData = false,
+                IncludeRatios = true
+            },
+            _ => new ReportGenerationOptions
+            {
+                DocumentId = documentId,
+                ReportType = reportType,
+                Title = "Financial Report"
+            }
+        };
+    }
+}
+```
+
+---
+
+## Step 7.6: Create Reports UI Page
+
+### Copilot Prompt for Reports Page:
+```
+In FinancialAnalysisAssistant.Web/Components/Pages/Reports.razor, create report generation interface:
+
+@page "/reports"
+@inject IReportService ReportService
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>Reports</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Generate Reports</MudText>
+
+<MudCard Elevation="2">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudSelect @bind-Value="_selectedDocumentId" Label="Select Document" Variant="Variant.Outlined">
+                    @foreach (var doc in _documents)
+                    {
+                        <MudSelectItem Value="@doc.Id">@doc.FileName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            
+            <MudItem xs="12" md="6">
+                <MudSelect @bind-Value="_selectedReportType" Label="Report Type" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@ReportType.Summary">Summary Report</MudSelectItem>
+                    <MudSelectItem Value="@ReportType.Detailed">Detailed Report</MudSelectItem>
+                    <MudSelectItem Value="@ReportType.RatioAnalysis">Ratio Analysis</MudSelectItem>
+                    <MudSelectItem Value="@ReportType.Comparison">Comparison Report</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            
+            <MudItem xs="12" md="6">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Error" 
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                           OnClick="GeneratePdfReport"
+                           Disabled="_isGenerating || _selectedDocumentId == 0">
+                    Generate PDF Report
+                </MudButton>
+            </MudItem>
+            
+            <MudItem xs="12" md="6">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Success" 
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.TableChart"
+                           OnClick="GenerateExcelReport"
+                           Disabled="_isGenerating || _selectedDocumentId == 0">
+                    Generate Excel Report
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+        
+        @if (_isGenerating)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mt-4" />
+            <MudText Align="Align.Center" Class="mt-2">Generating report...</MudText>
+        }
+    </MudCardContent>
+</MudCard>
+
+<!-- Recent Reports -->
+<MudCard Elevation="2" Class="mt-4">
+    <MudCardHeader>
+        <MudText Typo="Typo.h6">Recent Reports</MudText>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudTable Items="_recentReports" Hover="true">
+            <HeaderContent>
+                <MudTh>Title</MudTh>
+                <MudTh>Type</MudTh>
+                <MudTh>Generated Date</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Title</MudTd>
+                <MudTd>@context.ReportType</MudTd>
+                <MudTd>@context.GeneratedDate.ToString("g")</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Download" Size="Size.Small" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private bool _isGenerating;
+    private int _selectedDocumentId;
+    private ReportType _selectedReportType = ReportType.Summary;
+    private List<FinancialDocument> _documents = new();
+    private List<Report> _recentReports = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocuments();
+    }
+    
+    private async Task LoadDocuments()
+    {
+        _documents = (await DocumentRepo.GetAllAsync()).ToList();
+    }
+    
+    private async Task GeneratePdfReport()
+    {
+        try
+        {
+            _isGenerating = true;
+            
+            var pdfBytes = await ReportService.GeneratePdfReportAsync(_selectedDocumentId, _selectedReportType);
+            
+            // Download file using JavaScript
+            await JS.InvokeVoidAsync("downloadFile", 
+                Convert.ToBase64String(pdfBytes), 
+                $"FinancialReport_{DateTime.Now:yyyyMMdd}.pdf", 
+                "application/pdf");
+            
+            Snackbar.Add("PDF report generated successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating PDF: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+    
+    private async Task GenerateExcelReport()
+    {
+        try
+        {
+            _isGenerating = true;
+            
+            var excelBytes = await ReportService.GenerateExcelReportAsync(_selectedDocumentId, _selectedReportType);
+            
+            await JS.InvokeVoidAsync("downloadFile", 
+                Convert.ToBase64String(excelBytes), 
+                $"FinancialReport_{DateTime.Now:yyyyMMdd}.xlsx", 
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            
+            Snackbar.Add("Excel report generated successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating Excel: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+}
+```
+
+Add JavaScript file for file download in wwwroot/js/fileDownload.js:
+```javascript
+function downloadFile(base64, filename, contentType) {
+    const linkSource = `data:${contentType};base64,${base64}`;
+    const downloadLink = document.createElement("a");
+    downloadLink.href = linkSource;
+    downloadLink.download = filename;
+    downloadLink.click();
+}
+```
+
+Reference in App.razor:
+```html
+<script src="js/fileDownload.js"></script>
+```
+```
+
+---
+
+## Step 7.7: Register Report Services
+
+### Copilot Prompt for DI Registration:
+```
+In Program.cs, register report services:
+
+builder.Services.AddScoped<PdfReportService>();
+builder.Services.AddScoped<ExcelReportService>();
+builder.Services.AddScoped<IReportService, ReportService>();
+
+Add using statements:
+using FinancialAnalysisAssistant.Services.Reports;
+```
+
+---
+
+## Step 7.8: Verification Checklist
+
+Before moving to Phase 8, verify:
+
+- [ ] IReportService interface created
+- [ ] Report DTOs and models created
+- [ ] PdfReportService implemented
+- [ ] ExcelReportService implemented
+- [ ] ReportService facade implemented
+- [ ] Reports UI page created
+- [ ] File download JavaScript added
+- [ ] All services registered
+- [ ] PDF generation working
+- [ ] Excel generation working
+- [ ] File downloads working
+- [ ] No compilation errors
+
+**Manual Test:**
+1. Run application
+2. Navigate to Reports page
+3. Select a document
+4. Generate PDF report
+5. Generate Excel report
+6. Verify downloads work
+7. Check report formatting
+
+---
+
+## Next Phase Preview
+
+**Phase 8** (Final Phase) will cover:
+- Testing and quality assurance
+- Performance optimization
+- Security hardening
+- Deployment preparation
+- Documentation finalization
+
+---
+
+## Files Created This Phase
+
+```
+? FinancialAnalysisAssistant.Services/Reports/IReportService.cs
+? FinancialAnalysisAssistant.Services/Reports/PdfReportService.cs
+? FinancialAnalysisAssistant.Services/Reports/ExcelReportService.cs
+? FinancialAnalysisAssistant.Services/Reports/ReportService.cs
+? FinancialAnalysisAssistant.Core/DTOs/ReportTemplate.cs
+? FinancialAnalysisAssistant.Core/DTOs/ReportGenerationOptions.cs
+? FinancialAnalysisAssistant.Core/Enums/ReportType.cs
+? FinancialAnalysisAssistant.Web/Components/Pages/Reports.razor
+? FinancialAnalysisAssistant.Web/wwwroot/js/fileDownload.js
+```
+
+**Total Files:** 9  
+**Lines of Code:** ~1500-1800 (estimated)
+
+---
+
+## Progress Tracking
+
+**Phase 7 Status:** Ready to implement  
+**Next Phase:** Phase 8 - Testing, Optimization & Deployment  
+**Overall Progress:** 87.5% (7 of 8 phases)

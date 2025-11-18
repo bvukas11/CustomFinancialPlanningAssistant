@@ -1,0 +1,1405 @@
+# Financial Analysis Assistant - PHASE 4: Document Processing Service
+
+## Overview
+This phase implements document processing capabilities to extract financial data from Excel, CSV, and PDF files, with validation and error handling.
+
+**Estimated Time:** 3-4 hours  
+**Prerequisites:** Phase 1, 2, 3 completed  
+**Dependencies:** ClosedXML, CsvHelper, iTextSharp.LGPLv2.Core packages installed
+
+---
+
+## Step 4.1: Create File Storage Service
+
+### Copilot Prompt for IFileStorageService Interface:
+```
+In FinancialAnalysisAssistant.Infrastructure/FileStorage/, create IFileStorageService.cs:
+
+Create an interface for file storage operations with these methods:
+
+1. Task<string> SaveFileAsync(Stream fileStream, string fileName, string subFolder = "uploads")
+   - Saves uploaded file to disk
+   - Returns full file path
+   - Creates subdirectory if it doesn't exist
+
+2. Task<Stream> GetFileAsync(string filePath)
+   - Retrieves file as stream
+   - Throws if file not found
+
+3. Task<byte[]> GetFileBytesAsync(string filePath)
+   - Retrieves file as byte array
+   - For image processing
+
+4. Task<bool> DeleteFileAsync(string filePath)
+   - Deletes file from storage
+   - Returns true if successful
+
+5. Task<bool> FileExistsAsync(string filePath)
+   - Checks if file exists
+
+6. Task<long> GetFileSizeAsync(string filePath)
+   - Returns file size in bytes
+
+7. Task<string> GetFileExtensionAsync(string fileName)
+   - Extracts and returns file extension
+
+8. Task<List<string>> GetAllFilesAsync(string subFolder = "uploads")
+   - Lists all files in folder
+
+Add XML documentation for each method
+```
+
+### Copilot Prompt for FileStorageService Implementation:
+```
+In FinancialAnalysisAssistant.Infrastructure/FileStorage/, create FileStorageService.cs:
+
+Implement IFileStorageService with these requirements:
+
+1. Private fields:
+   - readonly string _baseStoragePath
+   - readonly ILogger<FileStorageService> _logger
+
+2. Constructor:
+   - Inject IConfiguration and ILogger
+   - Read base storage path from configuration (or use default)
+   - Create base directory if it doesn't exist
+   - Default path: Path.Combine(Directory.GetCurrentDirectory(), "FileStorage")
+
+3. Implement SaveFileAsync:
+   - Create full path combining base path, subfolder, and sanitized filename
+   - Ensure directory exists (create if not)
+   - Generate unique filename if file already exists (append timestamp)
+   - Copy stream to file
+   - Log successful save
+   - Return full file path
+   - Handle exceptions (log and throw)
+
+4. Implement GetFileAsync:
+   - Validate file exists
+   - Open file as FileStream with read access
+   - Return stream
+   - Throw FileNotFoundException if not found
+
+5. Implement GetFileBytesAsync:
+   - Use File.ReadAllBytesAsync
+   - Return byte array
+   - Handle exceptions
+
+6. Implement DeleteFileAsync:
+   - Check file exists
+   - Delete file
+   - Log deletion
+   - Return success status
+   - Handle exceptions gracefully
+
+7. Implement FileExistsAsync:
+   - Use File.Exists
+   - Return boolean
+
+8. Implement GetFileSizeAsync:
+   - Use FileInfo to get length
+   - Return size in bytes
+
+9. Implement GetFileExtensionAsync:
+   - Use Path.GetExtension
+   - Return extension (e.g., ".xlsx")
+
+10. Implement GetAllFilesAsync:
+    - Get all files in specified subfolder
+    - Return list of file paths
+
+Add helper method:
+- private string SanitizeFileName(string fileName)
+  * Remove invalid path characters
+  * Limit length to 255 characters
+  * Replace spaces with underscores
+
+Include comprehensive error handling and logging
+```
+
+### Copilot Prompt for Configuration:
+```
+In FinancialAnalysisAssistant.Web/appsettings.json, add:
+
+"FileStorage": {
+  "BasePath": "FileStorage",
+  "MaxFileSize": 52428800,
+  "AllowedExtensions": [".xlsx", ".xls", ".csv", ".pdf"],
+  "UploadFolder": "uploads",
+  "ProcessedFolder": "processed",
+  "ErrorFolder": "errors"
+}
+
+Then in Program.cs, register the service:
+
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+
+Add using statement:
+using FinancialAnalysisAssistant.Infrastructure.FileStorage;
+```
+
+---
+
+## Step 4.2: Create Document Processor Interface
+
+### Copilot Prompt for IDocumentProcessor Interface:
+```
+In FinancialAnalysisAssistant.Services/Financial/, create IDocumentProcessor.cs:
+
+Create an interface for document processing with these methods:
+
+1. Task<UploadResultDto> ProcessDocumentAsync(Stream fileStream, string fileName, string fileType)
+   - Main entry point for processing any document type
+   - Automatically routes to correct processor based on fileType
+   - Returns UploadResultDto with results
+
+2. Task<UploadResultDto> ProcessExcelAsync(Stream fileStream, string fileName)
+   - Processes Excel files (.xlsx, .xls)
+   - Extracts financial data
+   - Returns upload result
+
+3. Task<UploadResultDto> ProcessCsvAsync(Stream fileStream, string fileName)
+   - Processes CSV files
+   - Extracts financial data
+   - Returns upload result
+
+4. Task<UploadResultDto> ProcessPdfAsync(Stream fileStream, string fileName)
+   - Processes PDF files
+   - Extracts text and parses financial data
+   - Returns upload result
+
+5. Task<List<FinancialData>> ExtractDataFromExcelAsync(Stream fileStream)
+   - Extracts raw data from Excel without saving
+   - Returns list of FinancialData objects
+
+6. Task<List<FinancialData>> ExtractDataFromCsvAsync(Stream fileStream)
+   - Extracts raw data from CSV
+   - Returns list of FinancialData objects
+
+7. Task<string> ExtractTextFromPdfAsync(Stream fileStream)
+   - Extracts text content from PDF
+   - Returns raw text
+
+8. FileType DetectFileType(string fileName)
+   - Determines file type from extension
+   - Returns FileType enum
+
+9. Task<bool> ValidateFileAsync(Stream fileStream, string fileName)
+   - Validates file is not corrupt
+   - Checks file size
+   - Verifies structure
+   - Returns validation result
+
+Add XML documentation for all methods
+```
+
+---
+
+## Step 4.3: Implement Excel Processor
+
+### Copilot Prompt for Excel Processing (Part 1):
+```
+In FinancialAnalysisAssistant.Services/Financial/, create DocumentProcessor.cs:
+
+Start with class structure and Excel processing:
+
+1. Class setup:
+   - Implement IDocumentProcessor
+   - Private fields:
+     * readonly IFinancialDocumentRepository _documentRepo
+     * readonly IFinancialDataRepository _dataRepo
+     * readonly IFileStorageService _fileStorage
+     * readonly ILogger<DocumentProcessor> _logger
+     * readonly IConfiguration _configuration
+
+2. Constructor:
+   - Inject all dependencies
+   - Initialize fields
+
+3. Implement ProcessExcelAsync:
+
+public async Task<UploadResultDto> ProcessExcelAsync(Stream fileStream, string fileName)
+{
+    var result = new UploadResultDto { FileName = fileName };
+    var stopwatch = Stopwatch.StartNew();
+    
+    try
+    {
+        _logger.LogInformation($"Processing Excel file: {fileName}");
+        
+        // Save file to storage
+        var filePath = await _fileStorage.SaveFileAsync(fileStream, fileName);
+        var fileSize = await _fileStorage.GetFileSizeAsync(filePath);
+        
+        // Reset stream position for reading
+        fileStream.Position = 0;
+        
+        // Extract financial data
+        var financialDataList = await ExtractDataFromExcelAsync(fileStream);
+        
+        if (financialDataList == null || !financialDataList.Any())
+        {
+            result.AddError("No financial data found in Excel file");
+            result.Success = false;
+            return result;
+        }
+        
+        // Create document record
+        var document = new FinancialDocument
+        {
+            FileName = fileName,
+            FileType = "Excel",
+            UploadDate = DateTime.UtcNow,
+            FileSize = fileSize,
+            FilePath = filePath,
+            Status = "Processing",
+            CreatedBy = "System"
+        };
+        
+        var savedDoc = await _documentRepo.AddAsync(document);
+        await _documentRepo.SaveChangesAsync();
+        
+        // Link data to document
+        foreach (var data in financialDataList)
+        {
+            data.DocumentId = savedDoc.Id;
+        }
+        
+        // Save financial data
+        await _dataRepo.AddRangeAsync(financialDataList);
+        await _dataRepo.SaveChangesAsync();
+        
+        // Update document status
+        savedDoc.Status = "Analyzed";
+        await _documentRepo.UpdateAsync(savedDoc);
+        await _documentRepo.SaveChangesAsync();
+        
+        stopwatch.Stop();
+        result.Success = true;
+        result.DocumentId = savedDoc.Id;
+        result.RecordsImported = financialDataList.Count;
+        result.ProcessingTime = (int)stopwatch.ElapsedMilliseconds;
+        
+        _logger.LogInformation($"Successfully processed {financialDataList.Count} records from {fileName}");
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, $"Error processing Excel file: {fileName}");
+        result.Success = false;
+        result.AddError($"Processing failed: {ex.Message}");
+    }
+    
+    return result;
+}
+```
+
+### Copilot Prompt for Excel Data Extraction:
+```
+In DocumentProcessor.cs, implement ExtractDataFromExcelAsync:
+
+public async Task<List<FinancialData>> ExtractDataFromExcelAsync(Stream fileStream)
+{
+    var dataList = new List<FinancialData>();
+    
+    try
+    {
+        using (var workbook = new XLWorkbook(fileStream))
+        {
+            // Get first worksheet
+            var worksheet = workbook.Worksheet(1);
+            
+            if (worksheet == null)
+            {
+                _logger.LogWarning("No worksheet found in Excel file");
+                return dataList;
+            }
+            
+            // Find header row (search first 10 rows for keywords)
+            int headerRow = FindHeaderRow(worksheet);
+            
+            if (headerRow == 0)
+            {
+                _logger.LogWarning("Could not find header row in Excel file");
+                return dataList;
+            }
+            
+            // Map column indices based on headers
+            var columnMap = MapColumns(worksheet, headerRow);
+            
+            // Process data rows
+            var lastRow = worksheet.LastRowUsed().RowNumber();
+            
+            for (int row = headerRow + 1; row <= lastRow; row++)
+            {
+                try
+                {
+                    var rowData = worksheet.Row(row);
+                    
+                    // Skip empty rows
+                    if (rowData.IsEmpty()) continue;
+                    
+                    var financialData = new FinancialData
+                    {
+                        AccountName = GetCellValue(worksheet, row, columnMap.GetValueOrDefault("AccountName", 0)),
+                        AccountCode = GetCellValue(worksheet, row, columnMap.GetValueOrDefault("AccountCode", 0)),
+                        Period = GetCellValue(worksheet, row, columnMap.GetValueOrDefault("Period", 0)),
+                        Amount = ParseDecimal(GetCellValue(worksheet, row, columnMap.GetValueOrDefault("Amount", 0))),
+                        Currency = GetCellValue(worksheet, row, columnMap.GetValueOrDefault("Currency", 0)) ?? "USD",
+                        Category = GetCellValue(worksheet, row, columnMap.GetValueOrDefault("Category", 0)),
+                        SubCategory = GetCellValue(worksheet, row, columnMap.GetValueOrDefault("SubCategory", 0)),
+                        DateRecorded = ParseDate(GetCellValue(worksheet, row, columnMap.GetValueOrDefault("Date", 0)))
+                    };
+                    
+                    // Validate required fields
+                    if (ValidateFinancialData(financialData))
+                    {
+                        dataList.Add(financialData);
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"Row {row} has invalid data, skipping");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, $"Error processing row {row}, skipping");
+                }
+            }
+        }
+        
+        _logger.LogInformation($"Extracted {dataList.Count} records from Excel");
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error extracting data from Excel");
+        throw;
+    }
+    
+    return dataList;
+}
+
+// Helper method to find header row
+private int FindHeaderRow(IXLWorksheet worksheet)
+{
+    var headerKeywords = new[] { "account", "amount", "period", "category" };
+    
+    for (int row = 1; row <= 10; row++)
+    {
+        var rowData = worksheet.Row(row);
+        var cellValues = rowData.Cells()
+            .Select(c => c.Value.ToString().ToLower())
+            .ToList();
+        
+        // If row contains at least 2 header keywords, consider it header
+        var matchCount = headerKeywords.Count(keyword => 
+            cellValues.Any(cell => cell.Contains(keyword)));
+        
+        if (matchCount >= 2)
+        {
+            return row;
+        }
+    }
+    
+    return 0; // Not found
+}
+
+// Helper method to map column headers to indices
+private Dictionary<string, int> MapColumns(IXLWorksheet worksheet, int headerRow)
+{
+    var columnMap = new Dictionary<string, int>();
+    var headerRow = worksheet.Row(headerRow);
+    
+    foreach (var cell in headerRow.CellsUsed())
+    {
+        var headerValue = cell.Value.ToString().ToLower().Trim();
+        
+        if (headerValue.Contains("account") && headerValue.Contains("name"))
+            columnMap["AccountName"] = cell.Address.ColumnNumber;
+        else if (headerValue.Contains("account") && headerValue.Contains("code"))
+            columnMap["AccountCode"] = cell.Address.ColumnNumber;
+        else if (headerValue.Contains("period"))
+            columnMap["Period"] = cell.Address.ColumnNumber;
+        else if (headerValue.Contains("amount"))
+            columnMap["Amount"] = cell.Address.ColumnNumber;
+        else if (headerValue.Contains("currency"))
+            columnMap["Currency"] = cell.Address.ColumnNumber;
+        else if (headerValue.Contains("category"))
+            columnMap["Category"] = cell.Address.ColumnNumber;
+        else if (headerValue.Contains("subcategory") || headerValue.Contains("sub category"))
+            columnMap["SubCategory"] = cell.Address.ColumnNumber;
+        else if (headerValue.Contains("date"))
+            columnMap["Date"] = cell.Address.ColumnNumber;
+    }
+    
+    return columnMap;
+}
+
+// Helper method to get cell value safely
+private string GetCellValue(IXLWorksheet worksheet, int row, int column)
+{
+    if (column == 0) return null;
+    
+    try
+    {
+        return worksheet.Cell(row, column).Value.ToString().Trim();
+    }
+    catch
+    {
+        return null;
+    }
+}
+
+// Helper method to parse decimal
+private decimal ParseDecimal(string value)
+{
+    if (string.IsNullOrWhiteSpace(value)) return 0;
+    
+    // Remove currency symbols and commas
+    value = value.Replace("$", "").Replace("€", "").Replace("£", "").Replace(",", "");
+    
+    if (decimal.TryParse(value, out decimal result))
+        return result;
+    
+    return 0;
+}
+
+// Helper method to parse date
+private DateTime ParseDate(string value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+        return DateTime.UtcNow;
+    
+    if (DateTime.TryParse(value, out DateTime result))
+        return result;
+    
+    return DateTime.UtcNow;
+}
+
+// Helper method to validate financial data
+private bool ValidateFinancialData(FinancialData data)
+{
+    if (string.IsNullOrWhiteSpace(data.AccountName)) return false;
+    if (string.IsNullOrWhiteSpace(data.Period)) return false;
+    if (string.IsNullOrWhiteSpace(data.Category)) return false;
+    
+    return true;
+}
+
+Add using statements:
+using ClosedXML.Excel;
+using System.Diagnostics;
+```
+
+---
+
+## Step 4.4: Implement CSV Processor
+
+### Copilot Prompt for CSV Processing:
+```
+In DocumentProcessor.cs, implement CSV processing methods:
+
+1. ProcessCsvAsync:
+   - Similar structure to ProcessExcelAsync
+   - Call ExtractDataFromCsvAsync for data extraction
+   - Save file, create document record, link data
+   - Return UploadResultDto
+
+2. ExtractDataFromCsvAsync:
+
+public async Task<List<FinancialData>> ExtractDataFromCsvAsync(Stream fileStream)
+{
+    var dataList = new List<FinancialData>();
+    
+    try
+    {
+        using (var reader = new StreamReader(fileStream))
+        using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
+        {
+            // Configure CsvHelper
+            csv.Context.RegisterClassMap<FinancialDataCsvMap>();
+            
+            // Read all records
+            var records = csv.GetRecords<FinancialDataCsvRecord>();
+            
+            foreach (var record in records)
+            {
+                try
+                {
+                    var financialData = new FinancialData
+                    {
+                        AccountName = record.AccountName,
+                        AccountCode = record.AccountCode,
+                        Period = record.Period,
+                        Amount = ParseDecimal(record.Amount),
+                        Currency = record.Currency ?? "USD",
+                        Category = record.Category,
+                        SubCategory = record.SubCategory,
+                        DateRecorded = ParseDate(record.Date)
+                    };
+                    
+                    if (ValidateFinancialData(financialData))
+                    {
+                        dataList.Add(financialData);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error processing CSV record, skipping");
+                }
+            }
+        }
+        
+        _logger.LogInformation($"Extracted {dataList.Count} records from CSV");
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error extracting data from CSV");
+        throw;
+    }
+    
+    return dataList;
+}
+
+3. Create CSV mapping class:
+
+private class FinancialDataCsvRecord
+{
+    public string AccountName { get; set; }
+    public string AccountCode { get; set; }
+    public string Period { get; set; }
+    public string Amount { get; set; }
+    public string Currency { get; set; }
+    public string Category { get; set; }
+    public string SubCategory { get; set; }
+    public string Date { get; set; }
+}
+
+private class FinancialDataCsvMap : ClassMap<FinancialDataCsvRecord>
+{
+    public FinancialDataCsvMap()
+    {
+        Map(m => m.AccountName).Name("Account Name", "AccountName", "Account");
+        Map(m => m.AccountCode).Name("Account Code", "AccountCode", "Code").Optional();
+        Map(m => m.Period).Name("Period", "Time Period");
+        Map(m => m.Amount).Name("Amount", "Value");
+        Map(m => m.Currency).Name("Currency").Optional();
+        Map(m => m.Category).Name("Category", "Type");
+        Map(m => m.SubCategory).Name("Sub Category", "SubCategory", "Subcategory").Optional();
+        Map(m => m.Date).Name("Date", "Record Date").Optional();
+    }
+}
+
+Add using statements:
+using CsvHelper;
+using CsvHelper.Configuration;
+using System.Globalization;
+```
+
+---
+
+## Step 4.5: Implement PDF Processor
+
+### Copilot Prompt for PDF Processing:
+```
+In DocumentProcessor.cs, implement PDF processing methods:
+
+1. ProcessPdfAsync:
+   - Extract text from PDF
+   - Use AI to parse financial data from text
+   - Save document record
+   - Return UploadResultDto
+
+public async Task<UploadResultDto> ProcessPdfAsync(Stream fileStream, string fileName)
+{
+    var result = new UploadResultDto { FileName = fileName };
+    var stopwatch = Stopwatch.StartNew();
+    
+    try
+    {
+        _logger.LogInformation($"Processing PDF file: {fileName}");
+        
+        // Save file to storage
+        var filePath = await _fileStorage.SaveFileAsync(fileStream, fileName);
+        var fileSize = await _fileStorage.GetFileSizeAsync(filePath);
+        
+        // Reset stream for reading
+        fileStream.Position = 0;
+        
+        // Extract text from PDF
+        var extractedText = await ExtractTextFromPdfAsync(fileStream);
+        
+        if (string.IsNullOrWhiteSpace(extractedText))
+        {
+            result.AddError("No text could be extracted from PDF");
+            result.Success = false;
+            return result;
+        }
+        
+        // Create document record
+        var document = new FinancialDocument
+        {
+            FileName = fileName,
+            FileType = "PDF",
+            UploadDate = DateTime.UtcNow,
+            FileSize = fileSize,
+            FilePath = filePath,
+            Status = "Processing",
+            CreatedBy = "System"
+        };
+        
+        var savedDoc = await _documentRepo.AddAsync(document);
+        await _documentRepo.SaveChangesAsync();
+        
+        // Parse financial data from text
+        var financialDataList = ParseFinancialDataFromText(extractedText, savedDoc.Id);
+        
+        if (financialDataList.Any())
+        {
+            await _dataRepo.AddRangeAsync(financialDataList);
+            await _dataRepo.SaveChangesAsync();
+            result.RecordsImported = financialDataList.Count;
+        }
+        else
+        {
+            result.AddWarning("No structured financial data found in PDF");
+        }
+        
+        // Update document status
+        savedDoc.Status = "Analyzed";
+        await _documentRepo.UpdateAsync(savedDoc);
+        await _documentRepo.SaveChangesAsync();
+        
+        stopwatch.Stop();
+        result.Success = true;
+        result.DocumentId = savedDoc.Id;
+        result.ProcessingTime = (int)stopwatch.ElapsedMilliseconds;
+        
+        _logger.LogInformation($"Successfully processed PDF: {fileName}");
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, $"Error processing PDF file: {fileName}");
+        result.Success = false;
+        result.AddError($"Processing failed: {ex.Message}");
+    }
+    
+    return result;
+}
+
+2. ExtractTextFromPdfAsync:
+
+public async Task<string> ExtractTextFromPdfAsync(Stream fileStream)
+{
+    var text = new StringBuilder();
+    
+    try
+    {
+        using (var pdfReader = new PdfReader(fileStream))
+        {
+            for (int page = 1; page <= pdfReader.NumberOfPages; page++)
+            {
+                var pageText = PdfTextExtractor.GetTextFromPage(pdfReader, page);
+                text.AppendLine(pageText);
+            }
+        }
+        
+        _logger.LogInformation($"Extracted {text.Length} characters from PDF");
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error extracting text from PDF");
+        throw;
+    }
+    
+    return text.ToString();
+}
+
+3. ParseFinancialDataFromText (basic implementation):
+
+private List<FinancialData> ParseFinancialDataFromText(string text, int documentId)
+{
+    var dataList = new List<FinancialData>();
+    
+    try
+    {
+        // Use regex to find patterns like: "Account Name: $1,234.56"
+        // This is a basic implementation - for better results, use AI service
+        
+        var lines = text.Split('\n');
+        
+        foreach (var line in lines)
+        {
+            // Look for lines with amounts
+            var amountMatch = Regex.Match(line, @"\$?([\d,]+\.?\d*)");
+            
+            if (amountMatch.Success)
+            {
+                var amount = ParseDecimal(amountMatch.Groups[1].Value);
+                
+                if (amount > 0)
+                {
+                    // Try to extract account name (text before amount)
+                    var accountName = line.Substring(0, amountMatch.Index).Trim();
+                    
+                    if (!string.IsNullOrWhiteSpace(accountName) && accountName.Length > 3)
+                    {
+                        var data = new FinancialData
+                        {
+                            DocumentId = documentId,
+                            AccountName = accountName,
+                            Amount = amount,
+                            Currency = "USD",
+                            Category = "Unknown",
+                            Period = DateTime.Now.ToString("yyyy-MM"),
+                            DateRecorded = DateTime.UtcNow
+                        };
+                        
+                        dataList.Add(data);
+                    }
+                }
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        _logger.LogWarning(ex, "Error parsing financial data from text");
+    }
+    
+    return dataList;
+}
+
+Add using statements:
+using iTextSharp.text.pdf;
+using iTextSharp.text.pdf.parser;
+using System.Text;
+using System.Text.RegularExpressions;
+```
+
+---
+
+## Step 4.6: Implement Main ProcessDocumentAsync Method
+
+### Copilot Prompt for ProcessDocumentAsync:
+```
+In DocumentProcessor.cs, implement the main entry point:
+
+public async Task<UploadResultDto> ProcessDocumentAsync(Stream fileStream, string fileName, string fileType)
+{
+    try
+    {
+        _logger.LogInformation($"Processing document: {fileName}, Type: {fileType}");
+        
+        // Validate file
+        var isValid = await ValidateFileAsync(fileStream, fileName);
+        
+        if (!isValid)
+        {
+            return new UploadResultDto
+            {
+                FileName = fileName,
+                Success = false,
+                ErrorMessages = new List<string> { "File validation failed" }
+            };
+        }
+        
+        // Reset stream position
+        fileStream.Position = 0;
+        
+        // Route to appropriate processor
+        return fileType.ToLower() switch
+        {
+            "excel" or ".xlsx" or ".xls" => await ProcessExcelAsync(fileStream, fileName),
+            "csv" or ".csv" => await ProcessCsvAsync(fileStream, fileName),
+            "pdf" or ".pdf" => await ProcessPdfAsync(fileStream, fileName),
+            _ => new UploadResultDto
+            {
+                FileName = fileName,
+                Success = false,
+                ErrorMessages = new List<string> { $"Unsupported file type: {fileType}" }
+            }
+        };
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, $"Error processing document: {fileName}");
+        return new UploadResultDto
+        {
+            FileName = fileName,
+            Success = false,
+            ErrorMessages = new List<string> { $"Processing failed: {ex.Message}" }
+        };
+    }
+}
+```
+
+---
+
+## Step 4.7: Implement Validation Methods
+
+### Copilot Prompt for Validation:
+```
+In DocumentProcessor.cs, implement validation methods:
+
+1. ValidateFileAsync:
+
+public async Task<bool> ValidateFileAsync(Stream fileStream, string fileName)
+{
+    try
+    {
+        // Check file size
+        var maxFileSize = _configuration.GetValue<long>("FileStorage:MaxFileSize");
+        
+        if (fileStream.Length > maxFileSize)
+        {
+            _logger.LogWarning($"File {fileName} exceeds maximum size: {fileStream.Length} bytes");
+            return false;
+        }
+        
+        if (fileStream.Length == 0)
+        {
+            _logger.LogWarning($"File {fileName} is empty");
+            return false;
+        }
+        
+        // Check file extension
+        var extension = Path.GetExtension(fileName).ToLower();
+        var allowedExtensions = _configuration.GetSection("FileStorage:AllowedExtensions").Get<string[]>();
+        
+        if (!allowedExtensions.Contains(extension))
+        {
+            _logger.LogWarning($"File extension {extension} is not allowed");
+            return false;
+        }
+        
+        // Basic file integrity check
+        fileStream.Position = 0;
+        var buffer = new byte[8];
+        await fileStream.ReadAsync(buffer, 0, 8);
+        fileStream.Position = 0;
+        
+        // Check for common file signatures
+        var isValidSignature = extension switch
+        {
+            ".xlsx" => buffer[0] == 0x50 && buffer[1] == 0x4B, // PK (ZIP)
+            ".xls" => buffer[0] == 0xD0 && buffer[1] == 0xCF, // OLE
+            ".pdf" => buffer[0] == 0x25 && buffer[1] == 0x50, // %P
+            ".csv" => true, // CSV is plain text, hard to validate by signature
+            _ => false
+        };
+        
+        if (!isValidSignature)
+        {
+            _logger.LogWarning($"File {fileName} has invalid signature for type {extension}");
+            return false;
+        }
+        
+        return true;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, $"Error validating file: {fileName}");
+        return false;
+    }
+}
+
+2. DetectFileType:
+
+public FileType DetectFileType(string fileName)
+{
+    var extension = Path.GetExtension(fileName).ToLower();
+    
+    return extension switch
+    {
+        ".xlsx" or ".xls" => FileType.Excel,
+        ".csv" => FileType.CSV,
+        ".pdf" => FileType.PDF,
+        _ => FileType.Unknown
+    };
+}
+```
+
+---
+
+## Step 4.8: Register Document Processor Service
+
+### Copilot Prompt for DI Registration:
+```
+In FinancialAnalysisAssistant.Web/Program.cs, register the document processor:
+
+After other service registrations, add:
+
+builder.Services.AddScoped<IDocumentProcessor, DocumentProcessor>();
+
+Add using statement:
+using FinancialAnalysisAssistant.Services.Financial;
+
+This gives each request its own DocumentProcessor instance with injected dependencies
+```
+
+---
+
+## Step 4.9: Create Data Validation Service (Optional Enhancement)
+
+### Copilot Prompt for IDataValidationService:
+```
+In FinancialAnalysisAssistant.Services/Financial/, create IDataValidationService.cs:
+
+Create an interface for validating financial data quality:
+
+1. Task<ValidationResult> ValidateFinancialDataAsync(List<FinancialData> data)
+   - Validates entire dataset
+   - Returns validation result with issues
+
+2. ValidationResult ValidateSingleRecord(FinancialData data)
+   - Validates single record
+   - Returns validation issues
+
+3. Task<List<string>> DetectDuplicatesAsync(List<FinancialData> data)
+   - Finds duplicate records
+   - Returns list of duplicate descriptions
+
+4. Task<List<string>> DetectInconsistenciesAsync(List<FinancialData> data)
+   - Finds data inconsistencies
+   - Returns list of issues
+
+Create ValidationResult class:
+public class ValidationResult
+{
+    public bool IsValid { get; set; }
+    public List<string> Errors { get; set; } = new List<string>();
+    public List<string> Warnings { get; set; } = new List<string>();
+    public int RecordsChecked { get; set; }
+    public int ErrorCount => Errors.Count;
+    public int WarningCount => Warnings.Count;
+}
+
+Add XML documentation for all methods and properties
+```
+
+### Copilot Prompt for DataValidationService Implementation:
+```
+In FinancialAnalysisAssistant.Services/Financial/, create DataValidationService.cs:
+
+Implement IDataValidationService with these requirements:
+
+1. Constructor:
+   - Inject ILogger<DataValidationService>
+
+2. Implement ValidateFinancialDataAsync:
+
+public async Task<ValidationResult> ValidateFinancialDataAsync(List<FinancialData> data)
+{
+    var result = new ValidationResult
+    {
+        RecordsChecked = data.Count
+    };
+    
+    // Check for required fields
+    foreach (var record in data)
+    {
+        var recordValidation = ValidateSingleRecord(record);
+        result.Errors.AddRange(recordValidation.Errors);
+        result.Warnings.AddRange(recordValidation.Warnings);
+    }
+    
+    // Check for duplicates
+    var duplicates = await DetectDuplicatesAsync(data);
+    result.Warnings.AddRange(duplicates);
+    
+    // Check for inconsistencies
+    var inconsistencies = await DetectInconsistenciesAsync(data);
+    result.Warnings.AddRange(inconsistencies);
+    
+    result.IsValid = result.Errors.Count == 0;
+    
+    return result;
+}
+
+3. Implement ValidateSingleRecord:
+
+public ValidationResult ValidateSingleRecord(FinancialData data)
+{
+    var result = new ValidationResult { RecordsChecked = 1 };
+    
+    // Required field validation
+    if (string.IsNullOrWhiteSpace(data.AccountName))
+        result.Errors.Add("Account Name is required");
+    
+    if (string.IsNullOrWhiteSpace(data.Period))
+        result.Errors.Add("Period is required");
+    
+    if (string.IsNullOrWhiteSpace(data.Category))
+        result.Errors.Add("Category is required");
+    
+    // Amount validation
+    if (data.Amount == 0)
+        result.Warnings.Add($"Amount is zero for account: {data.AccountName}");
+    
+    if (data.Amount < 0)
+        result.Warnings.Add($"Negative amount detected for account: {data.AccountName}");
+    
+    // Period format validation
+    if (!IsValidPeriodFormat(data.Period))
+        result.Warnings.Add($"Period format may be invalid: {data.Period}");
+    
+    // Currency validation
+    if (string.IsNullOrWhiteSpace(data.Currency))
+        result.Warnings.Add($"Currency not specified for account: {data.AccountName}");
+    
+    // Category validation
+    var validCategories = new[] { "Revenue", "Expense", "Asset", "Liability", "Equity" };
+    if (!validCategories.Contains(data.Category))
+        result.Warnings.Add($"Unusual category: {data.Category} for account: {data.AccountName}");
+    
+    result.IsValid = result.Errors.Count == 0;
+    return result;
+}
+
+4. Implement DetectDuplicatesAsync:
+
+public async Task<List<string>> DetectDuplicatesAsync(List<FinancialData> data)
+{
+    var warnings = new List<string>();
+    
+    var duplicates = data
+        .GroupBy(d => new { d.AccountName, d.Period, d.Amount })
+        .Where(g => g.Count() > 1)
+        .ToList();
+    
+    foreach (var group in duplicates)
+    {
+        warnings.Add($"Potential duplicate: {group.Key.AccountName} for {group.Key.Period} with amount {group.Key.Amount:C} appears {group.Count()} times");
+    }
+    
+    return await Task.FromResult(warnings);
+}
+
+5. Implement DetectInconsistenciesAsync:
+
+public async Task<List<string>> DetectInconsistenciesAsync(List<FinancialData> data)
+{
+    var warnings = new List<string>();
+    
+    // Check for inconsistent currencies
+    var currencies = data.Select(d => d.Currency).Distinct().ToList();
+    if (currencies.Count > 1)
+    {
+        warnings.Add($"Multiple currencies detected: {string.Join(", ", currencies)}");
+    }
+    
+    // Check for inconsistent periods
+    var periods = data.Select(d => d.Period).Distinct().OrderBy(p => p).ToList();
+    if (periods.Count > 1)
+    {
+        warnings.Add($"Data spans multiple periods: {periods.Count} different periods found");
+    }
+    
+    // Check for unusual account code patterns
+    var withCodes = data.Where(d => !string.IsNullOrWhiteSpace(d.AccountCode)).ToList();
+    var withoutCodes = data.Where(d => string.IsNullOrWhiteSpace(d.AccountCode)).ToList();
+    
+    if (withCodes.Any() && withoutCodes.Any())
+    {
+        warnings.Add($"{withoutCodes.Count} records missing account codes");
+    }
+    
+    // Check for extreme values
+    if (data.Any())
+    {
+        var amounts = data.Select(d => d.Amount).ToList();
+        var average = amounts.Average();
+        var stdDev = CalculateStandardDeviation(amounts);
+        
+        var outliers = data.Where(d => Math.Abs(d.Amount - average) > (3 * stdDev)).ToList();
+        
+        if (outliers.Any())
+        {
+            warnings.Add($"{outliers.Count} records have amounts more than 3 standard deviations from average");
+        }
+    }
+    
+    return await Task.FromResult(warnings);
+}
+
+6. Helper methods:
+
+private bool IsValidPeriodFormat(string period)
+{
+    // Check common formats: YYYY-MM, YYYY-QX, YYYY
+    var patterns = new[]
+    {
+        @"^\d{4}-\d{2}$",     // 2024-01
+        @"^\d{4}-Q[1-4]$",    // 2024-Q1
+        @"^\d{4}$"            // 2024
+    };
+    
+    return patterns.Any(pattern => Regex.IsMatch(period, pattern));
+}
+
+private double CalculateStandardDeviation(List<decimal> values)
+{
+    var avg = values.Average();
+    var sumOfSquaresOfDifferences = values.Select(val => (double)(val - avg) * (double)(val - avg)).Sum();
+    return Math.Sqrt(sumOfSquaresOfDifferences / values.Count);
+}
+
+Add using statements:
+using System.Text.RegularExpressions;
+using System.Linq;
+```
+
+### Copilot Prompt for Registering Validation Service:
+```
+In Program.cs, register the validation service:
+
+builder.Services.AddScoped<IDataValidationService, DataValidationService>();
+
+Add using statement:
+using FinancialAnalysisAssistant.Services.Financial;
+```
+
+---
+
+## Step 4.10: Create Document Processing Test
+
+### Copilot Prompt for Test Files:
+```
+Create sample test files to verify document processing:
+
+1. Create a sample Excel file (SampleFinancialData.xlsx) with these columns:
+   - Account Name | Account Code | Period | Amount | Currency | Category | Sub Category | Date
+   
+   Sample rows:
+   - Sales Revenue | 4000 | 2024-Q1 | 150000 | USD | Revenue | Product Sales | 2024-03-31
+   - Cost of Sales | 5000 | 2024-Q1 | 75000 | USD | Expense | Operations | 2024-03-31
+   - Marketing Expenses | 5100 | 2024-Q1 | 25000 | USD | Expense | Marketing | 2024-03-31
+   - Office Rent | 5200 | 2024-Q1 | 12000 | USD | Expense | Facilities | 2024-03-31
+   - Equipment | 1500 | 2024-Q1 | 50000 | USD | Asset | Fixed Assets | 2024-03-31
+
+2. Create a sample CSV file (SampleFinancialData.csv) with the same structure
+
+3. Place these files in: FinancialAnalysisAssistant.Web/wwwroot/samples/
+
+These files can be used for testing the upload and processing functionality
+```
+
+---
+
+## Step 4.11: Verification Checklist
+
+Before moving to Phase 5, verify:
+
+- [ ] IFileStorageService interface created
+- [ ] FileStorageService implementation complete
+- [ ] File storage configuration in appsettings.json
+- [ ] IDocumentProcessor interface created with all methods
+- [ ] DocumentProcessor implementation complete
+- [ ] Excel processing working with ClosedXML
+- [ ] CSV processing working with CsvHelper
+- [ ] PDF processing working with iTextSharp
+- [ ] Main ProcessDocumentAsync routing correctly
+- [ ] File validation implemented
+- [ ] IDataValidationService created
+- [ ] DataValidationService implementation complete
+- [ ] All services registered in DI container
+- [ ] Sample test files created
+- [ ] No compilation errors
+
+**Manual Test:**
+1. Run the application
+2. Try uploading a sample Excel file
+3. Verify data is extracted and saved to database
+4. Check file is saved to FileStorage folder
+5. Verify FinancialDocument and FinancialData records created
+
+---
+
+## Next Phase Preview
+
+**Phase 5** will cover:
+- Financial Data Service implementation
+- Ratio calculations
+- Trend analysis logic
+- AI-powered insights integration
+- Anomaly detection algorithms
+
+---
+
+## Troubleshooting
+
+### Common Document Processing Issues:
+
+**Issue:** "File not found after upload"  
+**Solution:** Check FileStorage path exists and has write permissions
+
+**Issue:** ClosedXML throws exception on Excel file  
+**Solution:** Ensure file is valid .xlsx format, not corrupt
+
+**Issue:** "No data extracted from Excel"  
+**Solution:** 
+- Verify header row is in first 10 rows
+- Check column headers match expected names
+- Ensure data rows exist below header
+
+**Issue:** CSV parsing fails  
+**Solution:**
+- Check delimiter (comma vs semicolon vs tab)
+- Verify file encoding (UTF-8)
+- Check for extra blank lines
+
+**Issue:** PDF extraction returns empty text  
+**Solution:**
+- PDF may be image-based (scanned), not text-based
+- Use OCR or vision model for scanned PDFs
+- Check PDF is not password protected
+
+**Issue:** "Maximum file size exceeded"  
+**Solution:** Adjust MaxFileSize in appsettings.json
+
+**Issue:** Duplicate records created  
+**Solution:** Implement deduplication logic in validation service
+
+---
+
+## Performance Optimization Tips
+
+1. **Large Files:**
+   - Process files in batches
+   - Use streaming for very large files
+   - Implement progress reporting
+
+2. **Database Operations:**
+   - Use bulk insert for large datasets
+   - Batch SaveChanges() calls
+   - Use transactions for consistency
+
+3. **Memory Management:**
+   - Dispose streams properly
+   - Use 'using' statements
+   - Clear large collections after processing
+
+4. **Async Operations:**
+   - Use async/await throughout
+   - Don't block on async calls
+   - Handle cancellation tokens
+
+---
+
+## Files Created This Phase
+
+```
+✓ FinancialAnalysisAssistant.Infrastructure/FileStorage/IFileStorageService.cs
+✓ FinancialAnalysisAssistant.Infrastructure/FileStorage/FileStorageService.cs
+✓ FinancialAnalysisAssistant.Services/Financial/IDocumentProcessor.cs
+✓ FinancialAnalysisAssistant.Services/Financial/DocumentProcessor.cs
+✓ FinancialAnalysisAssistant.Services/Financial/IDataValidationService.cs
+✓ FinancialAnalysisAssistant.Services/Financial/DataValidationService.cs
+✓ FinancialAnalysisAssistant.Web/wwwroot/samples/SampleFinancialData.xlsx
+✓ FinancialAnalysisAssistant.Web/wwwroot/samples/SampleFinancialData.csv
+```
+
+**Total Files:** 8  
+**Lines of Code:** ~2000-2500 (estimated)
+
+---
+
+## Advanced Features to Consider (Future Enhancement)
+
+1. **Batch Processing:**
+   - Upload multiple files at once
+   - Queue-based processing
+   - Progress tracking
+
+2. **Smart Data Mapping:**
+   - AI-assisted column mapping
+   - Learn from user corrections
+   - Template management
+
+3. **OCR Integration:**
+   - Process scanned documents
+   - Extract data from images
+   - Use Llama Vision for image analysis
+
+4. **Data Quality Scoring:**
+   - Calculate quality score for each upload
+   - Provide recommendations for improvement
+   - Track data quality over time
+
+5. **Export Functionality:**
+   - Export processed data back to Excel
+   - Generate standardized templates
+   - Create data dictionaries
+
+---
+
+## Security Considerations
+
+1. **File Upload Security:**
+   - Validate file signatures (magic numbers)
+   - Scan for malicious content
+   - Limit file sizes
+   - Sanitize file names
+
+2. **Path Traversal Prevention:**
+   - Sanitize file paths
+   - Use safe path combination methods
+   - Restrict file access to allowed directories
+
+3. **Data Privacy:**
+   - Log file access
+   - Implement file permissions
+   - Consider encryption for sensitive files
+   - Auto-delete old files
+
+4. **Error Handling:**
+   - Don't expose file system details in errors
+   - Log detailed errors server-side only
+   - Provide user-friendly error messages
+
+---
+
+## Testing Recommendations
+
+1. **Unit Tests:**
+   - Test each file type processor separately
+   - Mock dependencies
+   - Test validation logic
+   - Test error handling
+
+2. **Integration Tests:**
+   - Test full upload workflow
+   - Test database integration
+   - Test file storage integration
+
+3. **Test Cases:**
+   - Valid files (happy path)
+   - Empty files
+   - Corrupted files
+   - Very large files
+   - Files with missing columns
+   - Files with invalid data
+   - Files with special characters
+   - Multiple currency scenarios
+
+---
+
+## Progress Tracking
+
+**Phase 4 Status:** Ready to implement  
+**Next Phase:** Phase 5 - Financial Data Service  
+**Overall Progress:** 50% (4 of 8 phases)
+
+---
+
+## Summary
+
+Phase 4 has established a robust document processing pipeline that:
+- ✅ Handles multiple file formats (Excel, CSV, PDF)
+- ✅ Validates data quality and integrity
+- ✅ Stores files securely with proper organization
+- ✅ Extracts and maps financial data automatically
+- ✅ Provides detailed error reporting
+- ✅ Integrates with database layer
+- ✅ Handles edge cases and errors gracefully
+
+You're now halfway through the implementation! The next phase will build the financial analysis logic that uses this processed data.

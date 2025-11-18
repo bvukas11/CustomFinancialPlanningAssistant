@@ -1,0 +1,25 @@
+@page "/trends"
+@rendermode InteractiveServer
+
+<PageTitle>Trends</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Financial Trends</MudText>
+
+<MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
+    <MudText Typo="Typo.h6" Class="mb-2">
+        <MudIcon Icon="@Icons.Material.Filled.Construction" Class="mr-2" />
+        Coming Soon!
+    </MudText>
+    <MudText>
+        The Trends page will show:
+    </MudText>
+    <MudList T="string" Dense="true" Class="mt-2">
+        <MudListItem T="string" Icon="@Icons.Material.Filled.TrendingUp">Revenue and expense trends over time</MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.ShowChart">Interactive charts and graphs</MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Compare">Period-over-period comparisons</MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Timeline">Growth rate analysis</MudListItem>
+    </MudList>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/" Class="mt-3">
+        Back to Dashboard
+    </MudButton>
+</MudAlert>

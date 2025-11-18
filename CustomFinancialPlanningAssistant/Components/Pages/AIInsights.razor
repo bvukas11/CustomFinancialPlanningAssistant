@@ -1,0 +1,25 @@
+@page "/ai-insights"
+@rendermode InteractiveServer
+
+<PageTitle>AI Insights</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">AI-Powered Insights</MudText>
+
+<MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
+    <MudText Typo="Typo.h6" Class="mb-2">
+        <MudIcon Icon="@Icons.Material.Filled.Psychology" Class="mr-2" />
+        Coming Soon!
+    </MudText>
+    <MudText>
+        The AI Insights page will provide:
+    </MudText>
+    <MudList T="string" Dense="true" Class="mt-2">
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Insights">AI-generated financial insights</MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Recommend">Personalized recommendations</MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Warning">Anomaly detection and alerts</MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Chat">Chat with your financial data</MudListItem>
+    </MudList>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/aitest" Class="mt-3">
+        Try AI Test Page
+    </MudButton>
+</MudAlert>

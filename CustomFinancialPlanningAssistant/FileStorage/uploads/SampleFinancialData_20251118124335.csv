@@ -1,0 +1,21 @@
+Account Name,Account Code,Period,Amount,Currency,Category,Sub Category,Date
+Sales Revenue,4000,2024-Q1,150000,USD,Revenue,Product Sales,2024-03-31
+Service Revenue,4100,2024-Q1,80000,USD,Revenue,Services,2024-03-31
+Consulting Revenue,4200,2024-Q1,45000,USD,Revenue,Consulting,2024-03-31
+Salaries and Wages,5000,2024-Q1,95000,USD,Expense,Personnel,2024-03-31
+Employee Benefits,5100,2024-Q1,18000,USD,Expense,Personnel,2024-03-31
+Office Rent,5200,2024-Q1,12000,USD,Expense,Facilities,2024-03-31
+Utilities,5210,2024-Q1,3500,USD,Expense,Facilities,2024-03-31
+Marketing Expenses,5300,2024-Q1,25000,USD,Expense,Marketing,2024-03-31
+Advertising,5310,2024-Q1,15000,USD,Expense,Marketing,2024-03-31
+Office Supplies,5400,2024-Q1,2800,USD,Expense,Operations,2024-03-31
+Software Subscriptions,5500,2024-Q1,8500,USD,Expense,Technology,2024-03-31
+Professional Fees,5600,2024-Q1,12000,USD,Expense,Professional Services,2024-03-31
+Travel Expenses,5700,2024-Q1,6200,USD,Expense,Travel,2024-03-31
+Equipment Purchase,1500,2024-Q1,28000,USD,Asset,Fixed Assets,2024-03-31
+Cash on Hand,1000,2024-Q1,75000,USD,Asset,Current Assets,2024-03-31
+Accounts Receivable,1100,2024-Q1,42000,USD,Asset,Current Assets,2024-03-31
+Inventory,1200,2024-Q1,38000,USD,Asset,Current Assets,2024-03-31
+Accounts Payable,2000,2024-Q1,28000,USD,Liability,Current Liabilities,2024-03-31
+Short-term Loan,2100,2024-Q1,50000,USD,Liability,Current Liabilities,2024-03-31
+Owner's Equity,3000,2024-Q1,250000,USD,Equity,Capital,2024-03-31

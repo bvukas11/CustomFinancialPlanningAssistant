@@ -1,0 +1,237 @@
+@page "/upload-test"
+@using CustomFinancialPlanningAssistant.Services.Financial
+@using CustomFinancialPlanningAssistant.Core.DTOs
+@inject IDocumentProcessor DocumentProcessor
+@inject ILogger<DocumentUploadTest> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Document Upload Test</PageTitle>
+
+<div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+    <h3>?? Document Upload & Processing Test</h3>
+    <p style="color: #666;">Upload Excel, CSV, or PDF files to test the document processor</p>
+
+    <!-- Upload Section -->
+    <div style="margin: 20px 0; padding: 20px; border: 2px dashed #ccc; border-radius: 8px; background-color: #f9f9f9;">
+        <h4>Select File to Upload</h4>
+        
+        <InputFile OnChange="HandleFileSelected" accept=".xlsx,.xls,.csv,.pdf" />
+        
+        @if (selectedFile != null)
+        {
+            <div style="margin-top: 10px; padding: 10px; background-color: #e3f2fd; border-radius: 4px;">
+                <p><strong>Selected File:</strong> @selectedFile.Name</p>
+                <p><strong>Size:</strong> @FormatFileSize(selectedFile.Size)</p>
+                <p><strong>Type:</strong> @selectedFile.ContentType</p>
+            </div>
+            
+            <button @onclick="ProcessFile" disabled="@isProcessing" 
+                    style="margin-top: 10px; padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                @if (isProcessing)
+                {
+                    <span>? Processing...</span>
+                }
+                else
+                {
+                    <span>?? Upload & Process</span>
+                }
+            </button>
+        }
+    </div>
+
+    <!-- Progress Section -->
+    @if (isProcessing)
+    {
+        <div style="margin: 20px 0; padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
+            <h4>? Processing...</h4>
+            <p>Please wait while we process your document...</p>
+            <div style="width: 100%; height: 4px; background-color: #ddd; border-radius: 2px; overflow: hidden;">
+                <div style="width: 50%; height: 100%; background-color: #4CAF50; animation: progress 1.5s ease-in-out infinite;"></div>
+            </div>
+        </div>
+    }
+
+    <!-- Results Section -->
+    @if (uploadResult != null)
+    {
+        @if (uploadResult.Success)
+        {
+            <div style="margin: 20px 0; padding: 20px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
+                <h4>? Upload Successful!</h4>
+                <div style="margin-top: 15px;">
+                    <p><strong>Document ID:</strong> @uploadResult.DocumentId</p>
+                    <p><strong>File Name:</strong> @uploadResult.FileName</p>
+                    <p><strong>Records Imported:</strong> @uploadResult.RecordsImported</p>
+                    <p><strong>Processing Time:</strong> @uploadResult.ProcessingTime ms</p>
+                </div>
+                
+                @if (uploadResult.HasWarnings)
+                {
+                    <div style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border-radius: 4px;">
+                        <h5>?? Warnings:</h5>
+                        @foreach (var warning in uploadResult.Warnings)
+                        {
+                            <p style="margin: 5px 0;">• @warning</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div style="margin: 20px 0; padding: 20px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px;">
+                <h4>? Upload Failed</h4>
+                <div style="margin-top: 15px;">
+                    @foreach (var error in uploadResult.ErrorMessages)
+                    {
+                        <p style="margin: 5px 0; color: #721c24;">• @error</p>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    <!-- Instructions Section -->
+    <div style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f5f5f5;">
+        <h4>?? Test File Formats</h4>
+        
+        <div style="margin-top: 15px;">
+            <h5>Excel Files (.xlsx, .xls)</h5>
+            <p>Headers should include: Account Name, Amount, Category, Period</p>
+            <p><em>Example: Use SampleFinancialData.xlsx from Documentation folder</em></p>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <h5>CSV Files (.csv)</h5>
+            <p>Comma-separated with headers: Account Name,Amount,Category,Period</p>
+            <p><em>Example: Use SampleFinancialData.csv from Documentation folder</em></p>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <h5>PDF Files (.pdf)</h5>
+            <p>Will use AI vision for extraction (slower but more accurate)</p>
+            <p><em>Works best with financial statements, invoices, or tables</em></p>
+        </div>
+    </div>
+
+    <!-- Sample Files Download -->
+    <div style="margin: 20px 0; padding: 20px; border: 1px solid #0066cc; border-radius: 8px; background-color: #e3f2fd;">
+        <h4>?? Sample Test Files</h4>
+        <p>Sample files are available in the <code>Documentation</code> folder:</p>
+        <ul>
+            <li><strong>SampleFinancialData.csv</strong> - CSV format with 5 sample records</li>
+            <li><strong>SampleFinancialData.xlsx</strong> - Excel format with headers and data</li>
+        </ul>
+        <p style="margin-top: 10px;"><em>These files contain sample revenue and expense data you can use for testing.</em></p>
+    </div>
+
+    <!-- Database Info -->
+    @if (uploadResult?.Success == true)
+    {
+        <div style="margin: 20px 0; padding: 20px; border: 1px solid #28a745; border-radius: 8px; background-color: #e8f5e9;">
+            <h4>?? Database Records Created</h4>
+            <p>Your data has been saved to the database:</p>
+            <ul>
+                <li><strong>FinancialDocuments</strong> table - 1 new document record (ID: @uploadResult.DocumentId)</li>
+                <li><strong>FinancialData</strong> table - @uploadResult.RecordsImported new data records</li>
+            </ul>
+            <p style="margin-top: 10px;">
+                <em>You can query the database to see these records using SQL Server Management Studio or Azure Data Studio.</em>
+            </p>
+        </div>
+    }
+</div>
+
+<style>
+    @@keyframes progress {
+        0% { margin-left: -50%; }
+        50% { margin-left: 50%; }
+        100% { margin-left: 150%; }
+    }
+</style>
+
+@code {
+    private IBrowserFile? selectedFile;
+    private bool isProcessing = false;
+    private UploadResultDto? uploadResult;
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        uploadResult = null; // Clear previous results
+        Logger.LogInformation("File selected: {FileName}, Size: {Size}", selectedFile.Name, selectedFile.Size);
+    }
+
+    private async Task ProcessFile()
+    {
+        if (selectedFile == null) return;
+
+        isProcessing = true;
+        uploadResult = null;
+
+        try
+        {
+            Logger.LogInformation("Starting file processing: {FileName}", selectedFile.Name);
+
+            // Create stream from uploaded file (max 50MB)
+            using var stream = selectedFile.OpenReadStream(maxAllowedSize: 52428800);
+
+            // Detect file type from extension
+            var extension = Path.GetExtension(selectedFile.Name).ToLower();
+            var fileType = extension switch
+            {
+                ".xlsx" or ".xls" => "excel",
+                ".csv" => "csv",
+                ".pdf" => "pdf",
+                _ => "unknown"
+            };
+
+            Logger.LogInformation("Processing as file type: {FileType}", fileType);
+
+            // Process the document
+            uploadResult = await DocumentProcessor.ProcessDocumentAsync(
+                stream,
+                selectedFile.Name,
+                fileType
+            );
+
+            if (uploadResult.Success)
+            {
+                Logger.LogInformation("File processed successfully: {RecordCount} records imported", 
+                    uploadResult.RecordsImported);
+            }
+            else
+            {
+                Logger.LogWarning("File processing failed: {Errors}", 
+                    string.Join(", ", uploadResult.ErrorMessages));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error processing file: {FileName}", selectedFile.Name);
+            uploadResult = new UploadResultDto
+            {
+                FileName = selectedFile.Name,
+                Success = false,
+                ErrorMessages = new List<string> { $"Error: {ex.Message}" }
+            };
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+}

@@ -1,0 +1,310 @@
+// ============================================================================
+// MISSING METHODS FOR FINANCIALSERVICE.CS
+// Copy these and insert them after the constructor, before the Trend Analysis region
+// ============================================================================
+
+    #region Summary & Overview Methods
+
+    public async Task<FinancialSummaryDto> GetFinancialSummaryAsync(int documentId)
+    {
+        try
+        {
+            _logger.LogInformation("Generating financial summary for document: {DocumentId}", documentId);
+
+            var document = await _documentRepo.GetWithDataAsync(documentId);
+            if (document == null)
+            {
+                throw new ArgumentException($"Document {documentId} not found");
+            }
+
+            var data = document.FinancialDataRecords.ToList();
+
+            if (!data.Any())
+            {
+                throw new InvalidOperationException("No financial data found for document");
+            }
+
+            var summary = new FinancialSummaryDto
+            {
+                DocumentId = documentId,
+                DocumentName = document.FileName,
+                Period = data.FirstOrDefault()?.Period ?? "Unknown",
+                GeneratedDate = DateTime.UtcNow
+            };
+
+            summary.TotalRevenue = data
+                .Where(d => d.Category.Equals("Revenue", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.TotalExpenses = data
+                .Where(d => d.Category.Equals("Expense", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.TotalAssets = data
+                .Where(d => d.Category.Equals("Asset", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.TotalLiabilities = data
+                .Where(d => d.Category.Equals("Liability", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.Equity = data
+                .Where(d => d.Category.Equals("Equity", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.NetIncome = summary.TotalRevenue - summary.TotalExpenses;
+            summary.GrossProfit = summary.TotalRevenue;
+            summary.OperatingIncome = summary.NetIncome;
+
+            summary.CategoryBreakdown = data
+                .GroupBy(d => d.Category)
+                .ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+
+            summary.KeyHighlights = GenerateKeyHighlights(summary);
+
+            _logger.LogInformation("Financial summary generated successfully for document {DocumentId}", documentId);
+            return summary;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating financial summary for document {DocumentId}", documentId);
+            throw;
+        }
+    }
+
+    public async Task<FinancialSummaryDto> GetFinancialSummaryByPeriodAsync(string period)
+    {
+        try
+        {
+            _logger.LogInformation("Generating financial summary for period: {Period}", period);
+
+            var data = await _dataRepo.GetByPeriodAsync(period);
+
+            if (!data.Any())
+            {
+                throw new InvalidOperationException($"No financial data found for period {period}");
+            }
+
+            var summary = new FinancialSummaryDto
+            {
+                DocumentName = $"Period Summary: {period}",
+                Period = period,
+                GeneratedDate = DateTime.UtcNow
+            };
+
+            summary.TotalRevenue = data
+                .Where(d => d.Category.Equals("Revenue", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.TotalExpenses = data
+                .Where(d => d.Category.Equals("Expense", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.TotalAssets = data
+                .Where(d => d.Category.Equals("Asset", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.TotalLiabilities = data
+                .Where(d => d.Category.Equals("Liability", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.Equity = data
+                .Where(d => d.Category.Equals("Equity", StringComparison.OrdinalIgnoreCase))
+                .Sum(d => d.Amount);
+
+            summary.NetIncome = summary.TotalRevenue - summary.TotalExpenses;
+            summary.GrossProfit = summary.TotalRevenue;
+            summary.OperatingIncome = summary.NetIncome;
+
+            summary.CategoryBreakdown = data
+                .GroupBy(d => d.Category)
+                .ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+
+            summary.KeyHighlights = GenerateKeyHighlights(summary);
+
+            return summary;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating financial summary for period {Period}", period);
+            throw;
+        }
+    }
+
+    public async Task<Dictionary<string, decimal>> GetCategorySummaryAsync(int documentId)
+    {
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+
+        return document.FinancialDataRecords
+            .GroupBy(d => d.Category)
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+    }
+
+    public async Task<Dictionary<string, decimal>> GetPeriodSummaryAsync(int documentId)
+    {
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+
+        return document.FinancialDataRecords
+            .GroupBy(d => d.Period)
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+    }
+
+    private List<string> GenerateKeyHighlights(FinancialSummaryDto summary)
+    {
+        var highlights = new List<string>();
+
+        if (summary.TotalRevenue > 0)
+        {
+            highlights.Add($"Total Revenue: {summary.TotalRevenue:C}");
+        }
+
+        if (summary.NetIncome > 0)
+        {
+            highlights.Add($"Profitable period with Net Income: {summary.NetIncome:C}");
+        }
+        else if (summary.NetIncome < 0)
+        {
+            highlights.Add($"Loss of {Math.Abs(summary.NetIncome):C} recorded");
+        }
+
+        if (summary.TotalRevenue > 0)
+        {
+            var profitMargin = (summary.NetIncome / summary.TotalRevenue) * 100;
+            highlights.Add($"Profit Margin: {profitMargin:F2}%");
+        }
+
+        if (summary.TotalRevenue > 0 && summary.TotalExpenses > 0)
+        {
+            var expenseRatio = (summary.TotalExpenses / summary.TotalRevenue) * 100;
+            highlights.Add($"Expense Ratio: {expenseRatio:F2}%");
+        }
+
+        if (summary.TotalAssets > 0)
+        {
+            highlights.Add($"Total Assets: {summary.TotalAssets:C}");
+        }
+
+        if (summary.TotalLiabilities > 0 && summary.Equity > 0)
+        {
+            var debtToEquity = summary.TotalLiabilities / summary.Equity;
+            highlights.Add($"Debt-to-Equity Ratio: {debtToEquity:F2}");
+        }
+
+        return highlights;
+    }
+
+    #endregion
+
+    #region Ratio Analysis Methods
+
+    public async Task<Dictionary<string, decimal>> CalculateFinancialRatiosAsync(int documentId)
+    {
+        try
+        {
+            _logger.LogInformation("Calculating financial ratios for document: {DocumentId}", documentId);
+
+            var ratios = new Dictionary<string, decimal>();
+
+            var profitability = await CalculateProfitabilityRatiosAsync(documentId);
+            var liquidity = await CalculateLiquidityRatiosAsync(documentId);
+            var efficiency = await CalculateEfficiencyRatiosAsync(documentId);
+
+            foreach (var ratio in profitability)
+                ratios[ratio.Key] = ratio.Value;
+
+            foreach (var ratio in liquidity)
+                ratios[ratio.Key] = ratio.Value;
+
+            foreach (var ratio in efficiency)
+                ratios[ratio.Key] = ratio.Value;
+
+            return ratios;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating financial ratios for document {DocumentId}", documentId);
+            throw;
+        }
+    }
+
+    public async Task<Dictionary<string, decimal>> CalculateProfitabilityRatiosAsync(int documentId)
+    {
+        var ratios = new Dictionary<string, decimal>();
+        var summary = await GetFinancialSummaryAsync(documentId);
+
+        if (summary.TotalRevenue > 0)
+        {
+            ratios["GrossProfitMargin"] = (summary.GrossProfit / summary.TotalRevenue) * 100;
+            ratios["NetProfitMargin"] = (summary.NetIncome / summary.TotalRevenue) * 100;
+            ratios["OperatingProfitMargin"] = (summary.OperatingIncome / summary.TotalRevenue) * 100;
+        }
+
+        if (summary.TotalAssets > 0)
+        {
+            ratios["ReturnOnAssets"] = (summary.NetIncome / summary.TotalAssets) * 100;
+        }
+
+        if (summary.Equity > 0)
+        {
+            ratios["ReturnOnEquity"] = (summary.NetIncome / summary.Equity) * 100;
+        }
+
+        return ratios;
+    }
+
+    public async Task<Dictionary<string, decimal>> CalculateLiquidityRatiosAsync(int documentId)
+    {
+        var ratios = new Dictionary<string, decimal>();
+        var summary = await GetFinancialSummaryAsync(documentId);
+
+        if (summary.TotalLiabilities > 0)
+        {
+            ratios["CurrentRatio"] = summary.TotalAssets / summary.TotalLiabilities;
+        }
+
+        if (summary.Equity > 0)
+        {
+            ratios["DebtToEquity"] = summary.TotalLiabilities / summary.Equity;
+        }
+
+        if (summary.TotalAssets > 0)
+        {
+            ratios["DebtToAssets"] = (summary.TotalLiabilities / summary.TotalAssets) * 100;
+            ratios["EquityRatio"] = (summary.Equity / summary.TotalAssets) * 100;
+        }
+
+        return ratios;
+    }
+
+    public async Task<Dictionary<string, decimal>> CalculateEfficiencyRatiosAsync(int documentId)
+    {
+        var ratios = new Dictionary<string, decimal>();
+        var summary = await GetFinancialSummaryAsync(documentId);
+
+        if (summary.TotalAssets > 0)
+        {
+            ratios["AssetTurnover"] = summary.TotalRevenue / summary.TotalAssets;
+        }
+
+        if (summary.TotalRevenue > 0)
+        {
+            ratios["OperatingExpenseRatio"] = (summary.TotalExpenses / summary.TotalRevenue) * 100;
+        }
+
+        return ratios;
+    }
+
+    #endregion
+
+// ============================================================================
+// END OF MISSING METHODS
+// Insert the above code BEFORE the "// PART 2" comment or "#region Trend Analysis"
+// ============================================================================

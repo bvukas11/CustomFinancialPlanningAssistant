@@ -1,0 +1,249 @@
+@page "/"
+@rendermode InteractiveServer
+@inject IFinancialService FinancialService
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
+
+<PageTitle>Dashboard - Financial Analysis Assistant</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Financial Dashboard</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Overview of your financial data and recent activities</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    <MudText Class="mt-2">Loading dashboard data...</MudText>
+}
+else if (_summary != null)
+{
+    <!-- Summary Cards -->
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total Revenue</MudText>
+                    <MudText Typo="Typo.h4" Color="Color.Success">@_summary.TotalRevenue.ToString("C")</MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" Size="Size.Large" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total Expenses</MudText>
+                    <MudText Typo="Typo.h4" Color="Color.Error">@_summary.TotalExpenses.ToString("C")</MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.TrendingDown" Color="Color.Error" Size="Size.Large" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Net Income</MudText>
+                    <MudText Typo="Typo.h4" Color="@(_summary.NetIncome > 0 ? Color.Success : Color.Error)">
+                        @_summary.NetIncome.ToString("C")
+                    </MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Size="Size.Large" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Profit Margin</MudText>
+                    <MudText Typo="Typo.h4">
+                        @((_summary.TotalRevenue > 0 ? (_summary.NetIncome / _summary.TotalRevenue * 100) : 0).ToString("F2"))%
+                    </MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.BarChart" Size="Size.Large" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+    
+    <!-- Category Breakdown Chart -->
+    <MudGrid Class="mt-4">
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Category Breakdown</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_summary.CategoryBreakdown.Any())
+                    {
+                        <MudSimpleTable Striped="true">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var category in _summary.CategoryBreakdown)
+                                {
+                                    var percentage = _totalAmount > 0 ? (category.Value / _totalAmount * 100) : 0;
+                                    <tr>
+                                        <td>@category.Key</td>
+                                        <td>@category.Value.ToString("C")</td>
+                                        <td>
+                                            <MudProgressLinear Color="Color.Primary" Value="@((double)percentage)" Size="Size.Medium">
+                                                <MudText Typo="Typo.body2">@percentage.ToString("F1")%</MudText>
+                                            </MudProgressLinear>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                    else
+                    {
+                        <MudText>No category data available</MudText>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Key Highlights</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudList T="string">
+                        @foreach (var highlight in _summary.KeyHighlights)
+                        {
+                            <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success">
+                                @highlight
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+    
+    <!-- Recent Documents -->
+    <MudCard Elevation="2" Class="mt-4">
+        <MudCardHeader>
+            <MudText Typo="Typo.h6">Recent Documents</MudText>
+        </MudCardHeader>
+        <MudCardContent>
+            @if (_recentDocuments.Any())
+            {
+                <MudTable Items="_recentDocuments" Hover="true" Breakpoint="Breakpoint.Sm">
+                    <HeaderContent>
+                        <MudTh>File Name</MudTh>
+                        <MudTh>Upload Date</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="File Name">@context.FileName</MudTd>
+                        <MudTd DataLabel="Upload Date">@context.UploadDate.ToString("g")</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Color="GetStatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Actions">
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" 
+                                           OnClick="@(() => ViewDocument(context.Id))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Analytics" Size="Size.Small" 
+                                           OnClick="@(() => AnalyzeDocument(context.Id))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+            else
+            {
+                <MudText>No documents uploaded yet. <MudLink Href="/upload">Upload your first document</MudLink></MudText>
+            }
+        </MudCardContent>
+    </MudCard>
+}
+else
+{
+    <MudAlert Severity="Severity.Info">
+        <MudText>No financial data available yet.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/upload" Class="mt-2">
+            Upload Your First Document
+        </MudButton>
+    </MudAlert>
+}
+
+@code {
+    private bool _isLoading = true;
+    private FinancialSummaryDto? _summary;
+    private List<FinancialDocument> _recentDocuments = new();
+    private decimal _totalAmount;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+    
+    private async Task LoadDashboardData()
+    {
+        try
+        {
+            _isLoading = true;
+            
+            // Get recent documents - handle case where database might be empty
+            var documents = await DocumentRepo.GetRecentDocumentsAsync(5);
+            _recentDocuments = documents?.ToList() ?? new List<FinancialDocument>();
+            
+            // If we have documents, try to get summary for the most recent one
+            if (_recentDocuments.Any())
+            {
+                try
+                {
+                    _summary = await FinancialService.GetFinancialSummaryAsync(_recentDocuments.First().Id);
+                    if (_summary?.CategoryBreakdown != null && _summary.CategoryBreakdown.Any())
+                    {
+                        _totalAmount = _summary.CategoryBreakdown.Sum(c => Math.Abs(c.Value));
+                    }
+                }
+                catch (Exception summaryEx)
+                {
+                    // Log but don't fail - just show no summary
+                    Snackbar.Add($"Could not load financial summary: {summaryEx.Message}", Severity.Warning);
+                    _summary = null;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading dashboard: {ex.Message}", Severity.Error);
+            _recentDocuments = new List<FinancialDocument>();
+            _summary = null;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+    
+    private Color GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Analyzed" => Color.Success,
+            "Processing" => Color.Info,
+            "Error" => Color.Error,
+            _ => Color.Default
+        };
+    }
+    
+    private void ViewDocument(int documentId)
+    {
+        // TODO: Navigation to document details
+        Snackbar.Add($"View document {documentId} - Coming soon!", Severity.Info);
+    }
+    
+    private void AnalyzeDocument(int documentId)
+    {
+        // TODO: Navigation to analysis page
+        Snackbar.Add($"Analyze document {documentId} - Coming soon!", Severity.Info);
+    }
+}

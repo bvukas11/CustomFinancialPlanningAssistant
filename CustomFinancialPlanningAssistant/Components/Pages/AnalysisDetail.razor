@@ -1,0 +1,613 @@
+@page "/analysis/{DocumentId:int}"
+@rendermode InteractiveServer
+@inject IFinancialService FinancialService
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Financial Analysis</PageTitle>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    <MudText Class="mt-2">Loading analysis...</MudText>
+}
+else if (_document != null && _summary != null)
+{
+    <MudBreadcrumbs Items="_breadcrumbItems" Class="mb-4"></MudBreadcrumbs>
+    
+    <MudText Typo="Typo.h4" GutterBottom="true">
+        <MudIcon Icon="@Icons.Material.Filled.Analytics" Class="mr-2" />
+        Analysis: @_document.FileName
+    </MudText>
+    
+    <MudText Typo="Typo.body2" Class="mb-4">
+        Uploaded: @_document.UploadDate.ToString("g") | 
+        Records: @_document.FinancialDataRecords.Count |
+        Period: @_summary.Period
+    </MudText>
+    
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" @bind-ActivePanelIndex="_activeTab">
+        
+        <!-- Summary Tab -->
+        <MudTabPanel Text="Summary" Icon="@Icons.Material.Filled.Summarize">
+            <MudGrid>
+                <!-- Financial Metrics Cards -->
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h6" Class="mb-3">Financial Overview</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudCard Elevation="2">
+                                <MudCardContent>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total Revenue</MudText>
+                                    <MudText Typo="Typo.h5" Color="Color.Success">@_summary.TotalRevenue.ToString("C")</MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudCard Elevation="2">
+                                <MudCardContent>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total Expenses</MudText>
+                                    <MudText Typo="Typo.h5" Color="Color.Error">@_summary.TotalExpenses.ToString("C")</MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudCard Elevation="2">
+                                <MudCardContent>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">Net Income</MudText>
+                                    <MudText Typo="Typo.h5" Color="@(_summary.NetIncome > 0 ? Color.Success : Color.Error)">
+                                        @_summary.NetIncome.ToString("C")
+                                    </MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudCard Elevation="2">
+                                <MudCardContent>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">Profit Margin</MudText>
+                                    <MudText Typo="Typo.h5">
+                                        @((_summary.TotalRevenue > 0 ? (_summary.NetIncome / _summary.TotalRevenue * 100) : 0).ToString("F2"))%
+                                    </MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    </MudGrid>
+                </MudItem>
+                
+                <!-- Balance Sheet Summary -->
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Income Statement</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudSimpleTable Dense="true" Hover="true">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Revenue</strong></td>
+                                        <td class="text-end">@_summary.TotalRevenue.ToString("C")</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Expenses</strong></td>
+                                        <td class="text-end">(@_summary.TotalExpenses.ToString("C"))</td>
+                                    </tr>
+                                    <tr class="mud-table-row-highlighted">
+                                        <td><strong>Net Income</strong></td>
+                                        <td class="text-end"><strong>@_summary.NetIncome.ToString("C")</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Gross Profit</td>
+                                        <td class="text-end">@_summary.GrossProfit.ToString("C")</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Operating Income</td>
+                                        <td class="text-end">@_summary.OperatingIncome.ToString("C")</td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Balance Sheet</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudSimpleTable Dense="true" Hover="true">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Assets</strong></td>
+                                        <td class="text-end">@_summary.TotalAssets.ToString("C")</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Liabilities</strong></td>
+                                        <td class="text-end">@_summary.TotalLiabilities.ToString("C")</td>
+                                    </tr>
+                                    <tr class="mud-table-row-highlighted">
+                                        <td><strong>Equity</strong></td>
+                                        <td class="text-end"><strong>@_summary.Equity.ToString("C")</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2" class="pt-3">
+                                            <MudProgressLinear Value="@GetEquityPercentage()" Color="Color.Primary" Size="Size.Medium">
+                                                <MudText Typo="Typo.body2">Equity Ratio: @GetEquityPercentage().ToString("F1")%</MudText>
+                                            </MudProgressLinear>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <!-- Category Breakdown -->
+                <MudItem xs="12">
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Category Breakdown</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            @if (_summary.CategoryBreakdown.Any())
+                            {
+                                <MudGrid>
+                                    @foreach (var category in _summary.CategoryBreakdown.OrderByDescending(c => Math.Abs(c.Value)))
+                                    {
+                                        var total = _summary.CategoryBreakdown.Sum(c => Math.Abs(c.Value));
+                                        var percentage = total > 0 ? (Math.Abs(category.Value) / total * 100) : 0;
+                                        <MudItem xs="12" md="6">
+                                            <MudText Typo="Typo.body2">
+                                                <strong>@category.Key:</strong> @category.Value.ToString("C")
+                                            </MudText>
+                                            <MudProgressLinear Value="@((double)percentage)" 
+                                                               Color="GetCategoryColor(category.Key)" 
+                                                               Size="Size.Medium" 
+                                                               Class="mb-2">
+                                                <MudText Typo="Typo.body2">@percentage.ToString("F1")%</MudText>
+                                            </MudProgressLinear>
+                                        </MudItem>
+                                    }
+                                </MudGrid>
+                            }
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <!-- Key Highlights -->
+                <MudItem xs="12">
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Key Highlights</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList T="string" Dense="true">
+                                @foreach (var highlight in _summary.KeyHighlights)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success">
+                                        @highlight
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+        
+        <!-- Financial Ratios Tab -->
+        <MudTabPanel Text="Financial Ratios" Icon="@Icons.Material.Filled.Calculate">
+            @if (_ratios != null)
+            {
+                <MudGrid>
+                    <!-- Profitability Ratios -->
+                    <MudItem xs="12" md="6">
+                        <MudCard Elevation="2">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">
+                                        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Class="mr-2" />
+                                        Profitability Ratios
+                                    </MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                @foreach (var ratio in _ratios.Where(r => r.Key.Contains("Profit") || r.Key.Contains("Return")))
+                                {
+                                    var value = (double)Math.Min(Math.Abs(ratio.Value), 100);
+                                    var color = ratio.Value > 0 ? Color.Success : Color.Error;
+                                    <div class="mb-3">
+                                        <MudText Typo="Typo.body2" Class="mb-1">
+                                            <strong>@FormatRatioName(ratio.Key):</strong> @ratio.Value.ToString("F2")%
+                                        </MudText>
+                                        <MudProgressLinear Value="@value" Color="@color" Size="Size.Medium" />
+                                    </div>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <!-- Liquidity Ratios -->
+                    <MudItem xs="12" md="6">
+                        <MudCard Elevation="2">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">
+                                        <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Class="mr-2" />
+                                        Liquidity Ratios
+                                    </MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                @foreach (var ratio in _ratios.Where(r => r.Key.Contains("Debt") || r.Key.Contains("Current") || r.Key.Contains("Equity")))
+                                {
+                                    var value = (double)Math.Min(Math.Abs(ratio.Value), 100);
+                                    <div class="mb-3">
+                                        <MudText Typo="Typo.body2" Class="mb-1">
+                                            <strong>@FormatRatioName(ratio.Key):</strong> @ratio.Value.ToString("F2")@(ratio.Key.Contains("Ratio") ? "" : "%")
+                                        </MudText>
+                                        <MudProgressLinear Value="@value" Color="Color.Info" Size="Size.Medium" />
+                                    </div>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <!-- Efficiency Ratios -->
+                    <MudItem xs="12">
+                        <MudCard Elevation="2">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">
+                                        <MudIcon Icon="@Icons.Material.Filled.Speed" Class="mr-2" />
+                                        Efficiency Ratios
+                                    </MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudGrid>
+                                    @foreach (var ratio in _ratios.Where(r => r.Key.Contains("Turnover") || r.Key.Contains("Expense")))
+                                    {
+                                        var value = (double)Math.Min(Math.Abs(ratio.Value), 100);
+                                        <MudItem xs="12" md="6">
+                                            <div class="mb-3">
+                                                <MudText Typo="Typo.body2" Class="mb-1">
+                                                    <strong>@FormatRatioName(ratio.Key):</strong> @ratio.Value.ToString("F2")@(ratio.Key.Contains("Ratio") ? "%" : "")
+                                                </MudText>
+                                                <MudProgressLinear Value="@value" Color="Color.Warning" Size="Size.Medium" />
+                                            </div>
+                                        </MudItem>
+                                    }
+                                </MudGrid>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <!-- Ratio Interpretation -->
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Filled">
+                            <MudText Typo="Typo.h6" Class="mb-2">Ratio Interpretation Guide</MudText>
+                            <MudText><strong>Profitability:</strong> Higher values indicate better profitability</MudText>
+                            <MudText><strong>Current Ratio:</strong> >1 means assets exceed liabilities</MudText>
+                            <MudText><strong>Debt-to-Equity:</strong> Lower values indicate less financial leverage</MudText>
+                            <MudText><strong>Asset Turnover:</strong> Higher values indicate efficient asset utilization</MudText>
+                        </MudAlert>
+                    </MudItem>
+                </MudGrid>
+            }
+            else if (_isLoadingRatios)
+            {
+                <MudProgressCircular Indeterminate="true" />
+                <MudText Class="mt-2">Calculating financial ratios...</MudText>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           StartIcon="@Icons.Material.Filled.Calculate"
+                           OnClick="LoadRatios"
+                           Size="Size.Large">
+                    Calculate Financial Ratios
+                </MudButton>
+            }
+        </MudTabPanel>
+        
+        <!-- AI Insights Tab -->
+        <MudTabPanel Text="AI Insights" Icon="@Icons.Material.Filled.Psychology">
+            @if (_aiInsights != null)
+            {
+                <MudCard Elevation="2">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">AI-Generated Analysis</MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small">
+                                @_aiInsights.ModelUsed
+                            </MudChip>
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">
+                                @_aiInsights.ExecutionTime ms
+                            </MudChip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudText Typo="Typo.body1" Class="white-space-pre-wrap">@_aiInsights.DetailedAnalysis</MudText>
+                        
+                        @if (_aiInsights.KeyFindings.Any())
+                        {
+                            <MudText Typo="Typo.h6" Class="mt-4 mb-2">Key Findings:</MudText>
+                            <MudList T="string" Dense="true">
+                                @foreach (var finding in _aiInsights.KeyFindings)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Insights" IconColor="Color.Primary">
+                                        @finding
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        }
+                        
+                        @if (_aiInsights.Recommendations.Any())
+                        {
+                            <MudText Typo="Typo.h6" Class="mt-4 mb-2">Recommendations:</MudText>
+                            <MudList T="string" Dense="true">
+                                @foreach (var rec in _aiInsights.Recommendations)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Lightbulb" IconColor="Color.Warning">
+                                        @rec
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            }
+            else if (_isLoadingAI)
+            {
+                <MudProgressCircular Indeterminate="true" />
+                <MudText Class="mt-2">Generating AI insights... This may take a moment.</MudText>
+            }
+            else
+            {
+                <MudStack>
+                    <MudText Typo="Typo.body1">Generate AI-powered insights about your financial data using Llama 3.2</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               StartIcon="@Icons.Material.Filled.Psychology"
+                               OnClick="GenerateAIInsights"
+                               Size="Size.Large">
+                        Generate AI Analysis
+                    </MudButton>
+                </MudStack>
+            }
+        </MudTabPanel>
+        
+        <!-- Anomaly Detection Tab -->
+        <MudTabPanel Text="Anomaly Detection" Icon="@Icons.Material.Filled.Warning">
+            @if (_anomalies != null)
+            {
+                @if (_anomalies.Any())
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mb-4">
+                        Found <strong>@_anomalies.Count anomalies</strong> in your financial data
+                    </MudAlert>
+                    
+                    <MudTable Items="_anomalies" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+                        <HeaderContent>
+                            <MudTh>Account</MudTh>
+                            <MudTh>Period</MudTh>
+                            <MudTh>Actual Value</MudTh>
+                            <MudTh>Expected Value</MudTh>
+                            <MudTh>Deviation</MudTh>
+                            <MudTh>Severity</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Account">@context.AccountName</MudTd>
+                            <MudTd DataLabel="Period">@context.Period</MudTd>
+                            <MudTd DataLabel="Actual">@context.Value.ToString("C")</MudTd>
+                            <MudTd DataLabel="Expected">@context.ExpectedValue.ToString("C")</MudTd>
+                            <MudTd DataLabel="Deviation">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning">
+                                    @context.DeviationPercentage.ToString("F1")%
+                                </MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Severity">
+                                <MudChip T="string" Size="Size.Small" Color="GetSeverityColor(context.Severity)">
+                                    @context.Severity
+                                </MudChip>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Filled">
+                        <MudText Typo="Typo.h6">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="mr-2" />
+                            No Anomalies Detected
+                        </MudText>
+                        <MudText>Your financial data appears consistent with no significant outliers.</MudText>
+                    </MudAlert>
+                }
+            }
+            else if (_isLoadingAnomalies)
+            {
+                <MudProgressCircular Indeterminate="true" />
+                <MudText Class="mt-2">Detecting anomalies...</MudText>
+            }
+            else
+            {
+                <MudStack>
+                    <MudText Typo="Typo.body1">Detect unusual patterns or outliers in your financial data using statistical analysis</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               StartIcon="@Icons.Material.Filled.Warning"
+                               OnClick="DetectAnomalies"
+                               Size="Size.Large">
+                        Detect Anomalies
+                    </MudButton>
+                </MudStack>
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+else
+{
+    <MudAlert Severity="Severity.Error">
+        <MudText>Document not found or contains no financial data.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/documents" Class="mt-2">
+            Back to Documents
+        </MudButton>
+    </MudAlert>
+}
+
+@code {
+    [Parameter]
+    public int DocumentId { get; set; }
+    
+    private bool _isLoading = true;
+    private bool _isLoadingRatios;
+    private bool _isLoadingAI;
+    private bool _isLoadingAnomalies;
+    private int _activeTab = 0;
+    
+    private FinancialDocument? _document;
+    private FinancialSummaryDto? _summary;
+    private Dictionary<string, decimal>? _ratios;
+    private AnalysisResponseDto? _aiInsights;
+    private List<AnomalyDto>? _anomalies;
+    
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnalysisData();
+        SetupBreadcrumbs();
+    }
+    
+    private void SetupBreadcrumbs()
+    {
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Home", href: "/"),
+            new BreadcrumbItem("Analysis", href: "/analysis"),
+            new BreadcrumbItem(_document?.FileName ?? "Document", href: null, disabled: true)
+        };
+    }
+    
+    private async Task LoadAnalysisData()
+    {
+        try
+        {
+            _isLoading = true;
+            
+            _document = await DocumentRepo.GetWithDataAsync(DocumentId);
+            if (_document == null)
+            {
+                Snackbar.Add("Document not found", Severity.Error);
+                return;
+            }
+            
+            _summary = await FinancialService.GetFinancialSummaryAsync(DocumentId);
+            
+            // Auto-load ratios
+            await LoadRatios();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading analysis: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+    
+    private async Task LoadRatios()
+    {
+        try
+        {
+            _isLoadingRatios = true;
+            _ratios = await FinancialService.CalculateFinancialRatiosAsync(DocumentId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error calculating ratios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoadingRatios = false;
+        }
+    }
+    
+    private async Task GenerateAIInsights()
+    {
+        try
+        {
+            _isLoadingAI = true;
+            _aiInsights = await FinancialService.GenerateAIInsightsAsync(DocumentId, AnalysisType.Summary);
+            Snackbar.Add("AI insights generated successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating AI insights: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoadingAI = false;
+        }
+    }
+    
+    private async Task DetectAnomalies()
+    {
+        try
+        {
+            _isLoadingAnomalies = true;
+            _anomalies = await FinancialService.DetectAnomaliesAsync(DocumentId);
+            Snackbar.Add($"Analysis complete: {_anomalies.Count} anomalies found", 
+                _anomalies.Any() ? Severity.Warning : Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error detecting anomalies: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoadingAnomalies = false;
+        }
+    }
+    
+    private string FormatRatioName(string ratioKey)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(ratioKey, "([A-Z])", " $1").Trim();
+    }
+    
+    private double GetEquityPercentage()
+    {
+        if (_summary == null || _summary.TotalAssets == 0) return 0;
+        return (double)(_summary.Equity / _summary.TotalAssets * 100);
+    }
+    
+    private Color GetCategoryColor(string category)
+    {
+        return category.ToLower() switch
+        {
+            var c when c.Contains("revenue") || c.Contains("income") => Color.Success,
+            var c when c.Contains("expense") || c.Contains("cost") => Color.Error,
+            var c when c.Contains("asset") => Color.Info,
+            var c when c.Contains("liability") => Color.Warning,
+            _ => Color.Primary
+        };
+    }
+    
+    private Color GetSeverityColor(string severity)
+    {
+        return severity.ToLower() switch
+        {
+            "high" => Color.Error,
+            "medium" => Color.Warning,
+            "low" => Color.Info,
+            _ => Color.Default
+        };
+    }
+}

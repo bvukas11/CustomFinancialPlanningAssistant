@@ -1,0 +1,1516 @@
+# Financial Analysis Assistant - PHASE 5: Financial Data Service & Analytics
+
+## Overview
+This phase implements the core financial analysis service that performs calculations, ratio analysis, trend detection, and integrates AI-powered insights.
+
+**Estimated Time:** 3-4 hours  
+**Prerequisites:** Phase 1, 2, 3, 4 completed  
+**Dependencies:** All previous services, AI service integration
+
+---
+
+## Step 5.1: Create Financial Service Interface
+
+### Copilot Prompt for IFinancialService:
+```
+In FinancialAnalysisAssistant.Services/Financial/, create IFinancialService.cs:
+
+Create an interface for financial analysis operations with these methods:
+
+1. Summary & Overview:
+   - Task<FinancialSummaryDto> GetFinancialSummaryAsync(int documentId)
+   - Task<FinancialSummaryDto> GetFinancialSummaryByPeriodAsync(string period)
+   - Task<Dictionary<string, decimal>> GetCategorySummaryAsync(int documentId)
+   - Task<Dictionary<string, decimal>> GetPeriodSummaryAsync(int documentId)
+
+2. Ratio Analysis:
+   - Task<Dictionary<string, decimal>> CalculateFinancialRatiosAsync(int documentId)
+   - Task<Dictionary<string, decimal>> CalculateProfitabilityRatiosAsync(int documentId)
+   - Task<Dictionary<string, decimal>> CalculateLiquidityRatiosAsync(int documentId)
+   - Task<Dictionary<string, decimal>> CalculateEfficiencyRatiosAsync(int documentId)
+
+3. Trend Analysis:
+   - Task<TrendAnalysisDto> AnalyzeTrendsAsync(List<int> documentIds)
+   - Task<TrendAnalysisDto> AnalyzeTrendsByPeriodAsync(List<string> periods)
+   - Task<List<TrendDataPoint>> GetTrendDataAsync(string category, List<string> periods)
+   - Task<decimal> CalculateGrowthRateAsync(string category, string startPeriod, string endPeriod)
+
+4. Comparison:
+   - Task<ComparisonResultDto> ComparePeriodsAsync(string period1, string period2)
+   - Task<ComparisonResultDto> CompareDocumentsAsync(int documentId1, int documentId2)
+   - Task<Dictionary<string, decimal>> GetVarianceAnalysisAsync(int documentId1, int documentId2)
+
+5. Forecasting:
+   - Task<ForecastResultDto> GenerateForecastAsync(string category, int periodsAhead)
+   - Task<ForecastResultDto> GenerateSimpleForecastAsync(List<decimal> historicalValues, int periodsAhead)
+   - Task<List<decimal>> CalculateMovingAverageAsync(List<decimal> values, int period)
+
+6. AI-Enhanced Analysis:
+   - Task<AnalysisResponseDto> GenerateAIInsightsAsync(int documentId, AnalysisType analysisType)
+   - Task<AnalysisResponseDto> GenerateCustomAnalysisAsync(int documentId, string question)
+   - Task<string> GenerateFinancialNarrativeAsync(int documentId)
+
+7. Anomaly Detection:
+   - Task<List<AnomalyDto>> DetectAnomaliesAsync(int documentId)
+   - Task<List<AnomalyDto>> DetectOutliersAsync(List<FinancialData> data)
+   - Task<bool> IsAnomalousValueAsync(decimal value, string category, string period)
+
+Add XML documentation for each method explaining parameters and return values
+```
+
+---
+
+## Step 5.2: Create DTOs for Financial Service
+
+### Copilot Prompt for Financial DTOs:
+```
+In FinancialAnalysisAssistant.Core/DTOs/, create the following DTO files:
+
+1. FinancialSummaryDto.cs:
+public class FinancialSummaryDto
+{
+    public int DocumentId { get; set; }
+    public string DocumentName { get; set; }
+    public string Period { get; set; }
+    public decimal TotalRevenue { get; set; }
+    public decimal TotalExpenses { get; set; }
+    public decimal NetIncome { get; set; }
+    public decimal GrossProfit { get; set; }
+    public decimal OperatingIncome { get; set; }
+    public decimal TotalAssets { get; set; }
+    public decimal TotalLiabilities { get; set; }
+    public decimal Equity { get; set; }
+    public Dictionary<string, decimal> CategoryBreakdown { get; set; } = new();
+    public List<string> KeyHighlights { get; set; } = new();
+    public DateTime GeneratedDate { get; set; }
+}
+
+2. TrendAnalysisDto.cs:
+public class TrendAnalysisDto
+{
+    public string Category { get; set; }
+    public List<TrendDataPoint> DataPoints { get; set; } = new();
+    public string TrendDirection { get; set; } // "Increasing", "Decreasing", "Stable"
+    public decimal AverageGrowthRate { get; set; }
+    public decimal TotalChange { get; set; }
+    public decimal PercentageChange { get; set; }
+    public string StartPeriod { get; set; }
+    public string EndPeriod { get; set; }
+    public List<string> Insights { get; set; } = new();
+}
+
+public class TrendDataPoint
+{
+    public string Period { get; set; }
+    public decimal Value { get; set; }
+    public decimal? PercentageChange { get; set; }
+    public bool IsAnomaly { get; set; }
+}
+
+3. ComparisonResultDto.cs:
+public class ComparisonResultDto
+{
+    public string Period1 { get; set; }
+    public string Period2 { get; set; }
+    public Dictionary<string, ComparisonMetric> Metrics { get; set; } = new();
+    public List<string> SignificantChanges { get; set; } = new();
+    public string OverallTrend { get; set; }
+    public DateTime ComparisonDate { get; set; }
+}
+
+public class ComparisonMetric
+{
+    public string Category { get; set; }
+    public decimal Value1 { get; set; }
+    public decimal Value2 { get; set; }
+    public decimal Variance { get; set; }
+    public decimal PercentageChange { get; set; }
+    public string ChangeType { get; set; } // "Increase", "Decrease", "NoChange"
+}
+
+4. ForecastResultDto.cs:
+public class ForecastResultDto
+{
+    public string Category { get; set; }
+    public List<ForecastDataPoint> ForecastedValues { get; set; } = new();
+    public string Method { get; set; } // "Linear", "MovingAverage", "AIBased"
+    public decimal ConfidenceLevel { get; set; }
+    public List<string> Assumptions { get; set; } = new();
+    public List<string> RiskFactors { get; set; } = new();
+    public DateTime GeneratedDate { get; set; }
+}
+
+public class ForecastDataPoint
+{
+    public string Period { get; set; }
+    public decimal ForecastedValue { get; set; }
+    public decimal LowerBound { get; set; }
+    public decimal UpperBound { get; set; }
+}
+
+5. AnomalyDto.cs:
+public class AnomalyDto
+{
+    public int RecordId { get; set; }
+    public string AccountName { get; set; }
+    public string Period { get; set; }
+    public decimal Value { get; set; }
+    public decimal ExpectedValue { get; set; }
+    public decimal Deviation { get; set; }
+    public decimal DeviationPercentage { get; set; }
+    public string Severity { get; set; } // "Low", "Medium", "High"
+    public string Reason { get; set; }
+    public DateTime DetectedDate { get; set; }
+}
+
+Add XML documentation for all DTOs and properties
+```
+
+---
+
+## Step 5.3: Implement Financial Service (Part 1 - Setup & Summary)
+
+### Copilot Prompt for FinancialService Setup:
+```
+In FinancialAnalysisAssistant.Services/Financial/, create FinancialService.cs:
+
+Part 1 - Class structure and summary methods:
+
+1. Class setup:
+   - Implement IFinancialService
+   - Private fields:
+     * readonly IFinancialDocumentRepository _documentRepo
+     * readonly IFinancialDataRepository _dataRepo
+     * readonly ILlamaService _aiService
+     * readonly ILogger<FinancialService> _logger
+
+2. Constructor:
+   - Inject all dependencies
+   - Initialize fields
+
+3. Implement GetFinancialSummaryAsync:
+
+public async Task<FinancialSummaryDto> GetFinancialSummaryAsync(int documentId)
+{
+    try
+    {
+        _logger.LogInformation($"Generating financial summary for document: {documentId}");
+        
+        // Get document
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+        
+        var data = document.FinancialDataRecords.ToList();
+        
+        if (!data.Any())
+        {
+            throw new InvalidOperationException("No financial data found for document");
+        }
+        
+        // Calculate summary metrics
+        var summary = new FinancialSummaryDto
+        {
+            DocumentId = documentId,
+            DocumentName = document.FileName,
+            Period = data.FirstOrDefault()?.Period ?? "Unknown",
+            GeneratedDate = DateTime.UtcNow
+        };
+        
+        // Calculate totals by category
+        summary.TotalRevenue = data
+            .Where(d => d.Category.Equals("Revenue", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        summary.TotalExpenses = data
+            .Where(d => d.Category.Equals("Expense", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        summary.TotalAssets = data
+            .Where(d => d.Category.Equals("Asset", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        summary.TotalLiabilities = data
+            .Where(d => d.Category.Equals("Liability", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        summary.Equity = data
+            .Where(d => d.Category.Equals("Equity", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        // Calculate derived metrics
+        summary.NetIncome = summary.TotalRevenue - summary.TotalExpenses;
+        summary.GrossProfit = summary.TotalRevenue; // Simplified, adjust based on COGS
+        summary.OperatingIncome = summary.NetIncome; // Simplified
+        
+        // Create category breakdown
+        summary.CategoryBreakdown = data
+            .GroupBy(d => d.Category)
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+        
+        // Generate key highlights
+        summary.KeyHighlights = GenerateKeyHighlights(summary);
+        
+        _logger.LogInformation($"Financial summary generated successfully for document {documentId}");
+        return summary;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, $"Error generating financial summary for document {documentId}");
+        throw;
+    }
+}
+
+4. Implement GetFinancialSummaryByPeriodAsync:
+
+public async Task<FinancialSummaryDto> GetFinancialSummaryByPeriodAsync(string period)
+{
+    try
+    {
+        _logger.LogInformation($"Generating financial summary for period: {period}");
+        
+        // Get all data for the period
+        var data = await _dataRepo.GetByPeriodAsync(period);
+        
+        if (!data.Any())
+        {
+            throw new InvalidOperationException($"No financial data found for period {period}");
+        }
+        
+        var summary = new FinancialSummaryDto
+        {
+            DocumentName = $"Period Summary: {period}",
+            Period = period,
+            GeneratedDate = DateTime.UtcNow
+        };
+        
+        // Calculate totals (same logic as above)
+        summary.TotalRevenue = data
+            .Where(d => d.Category.Equals("Revenue", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        summary.TotalExpenses = data
+            .Where(d => d.Category.Equals("Expense", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        summary.TotalAssets = data
+            .Where(d => d.Category.Equals("Asset", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        summary.TotalLiabilities = data
+            .Where(d => d.Category.Equals("Liability", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        summary.Equity = data
+            .Where(d => d.Category.Equals("Equity", StringComparison.OrdinalIgnoreCase))
+            .Sum(d => d.Amount);
+        
+        summary.NetIncome = summary.TotalRevenue - summary.TotalExpenses;
+        summary.GrossProfit = summary.TotalRevenue;
+        summary.OperatingIncome = summary.NetIncome;
+        
+        summary.CategoryBreakdown = data
+            .GroupBy(d => d.Category)
+            .ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+        
+        summary.KeyHighlights = GenerateKeyHighlights(summary);
+        
+        return summary;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, $"Error generating financial summary for period {period}");
+        throw;
+    }
+}
+
+5. Helper method GenerateKeyHighlights:
+
+private List<string> GenerateKeyHighlights(FinancialSummaryDto summary)
+{
+    var highlights = new List<string>();
+    
+    // Revenue highlights
+    if (summary.TotalRevenue > 0)
+    {
+        highlights.Add($"Total Revenue: {summary.TotalRevenue:C}");
+    }
+    
+    // Profitability
+    if (summary.NetIncome > 0)
+    {
+        highlights.Add($"Profitable period with Net Income: {summary.NetIncome:C}");
+    }
+    else if (summary.NetIncome < 0)
+    {
+        highlights.Add($"Loss of {Math.Abs(summary.NetIncome):C} recorded");
+    }
+    
+    // Profit margin
+    if (summary.TotalRevenue > 0)
+    {
+        var profitMargin = (summary.NetIncome / summary.TotalRevenue) * 100;
+        highlights.Add($"Profit Margin: {profitMargin:F2}%");
+    }
+    
+    // Expense ratio
+    if (summary.TotalRevenue > 0)
+    {
+        var expenseRatio = (summary.TotalExpenses / summary.TotalRevenue) * 100;
+        highlights.Add($"Expense Ratio: {expenseRatio:F2}%");
+    }
+    
+    // Balance sheet
+    if (summary.TotalAssets > 0)
+    {
+        highlights.Add($"Total Assets: {summary.TotalAssets:C}");
+    }
+    
+    return highlights;
+}
+
+6. Implement GetCategorySummaryAsync and GetPeriodSummaryAsync:
+
+public async Task<Dictionary<string, decimal>> GetCategorySummaryAsync(int documentId)
+{
+    var document = await _documentRepo.GetWithDataAsync(documentId);
+    if (document == null)
+    {
+        throw new ArgumentException($"Document {documentId} not found");
+    }
+    
+    return document.FinancialDataRecords
+        .GroupBy(d => d.Category)
+        .ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+}
+
+public async Task<Dictionary<string, decimal>> GetPeriodSummaryAsync(int documentId)
+{
+    var document = await _documentRepo.GetWithDataAsync(documentId);
+    if (document == null)
+    {
+        throw new ArgumentException($"Document {documentId} not found");
+    }
+    
+    return document.FinancialDataRecords
+        .GroupBy(d => d.Period)
+        .ToDictionary(g => g.Key, g => g.Sum(d => d.Amount));
+}
+
+Add using statements:
+using FinancialAnalysisAssistant.Core.Entities;
+using FinancialAnalysisAssistant.Core.DTOs;
+using FinancialAnalysisAssistant.Infrastructure.Repositories;
+using FinancialAnalysisAssistant.Services.AI;
+using Microsoft.Extensions.Logging;
+```
+
+---
+
+## Step 5.4: Implement Financial Service (Part 2 - Ratio Analysis)
+
+### Copilot Prompt for Ratio Analysis:
+```
+In FinancialService.cs, implement ratio analysis methods:
+
+1. CalculateFinancialRatiosAsync (main method):
+
+public async Task<Dictionary<string, decimal>> CalculateFinancialRatiosAsync(int documentId)
+{
+    try
+    {
+        _logger.LogInformation($"Calculating financial ratios for document: {documentId}");
+        
+        var ratios = new Dictionary<string, decimal>();
+        
+        // Get all ratio types
+        var profitability = await CalculateProfitabilityRatiosAsync(documentId);
+        var liquidity = await CalculateLiquidityRatiosAsync(documentId);
+        var efficiency = await CalculateEfficiencyRatiosAsync(documentId);
+        
+        // Combine all ratios
+        foreach (var ratio in profitability)
+            ratios[ratio.Key] = ratio.Value;
+        
+        foreach (var ratio in liquidity)
+            ratios[ratio.Key] = ratio.Value;
+        
+        foreach (var ratio in efficiency)
+            ratios[ratio.Key] = ratio.Value;
+        
+        return ratios;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, $"Error calculating financial ratios for document {documentId}");
+        throw;
+    }
+}
+
+2. CalculateProfitabilityRatiosAsync:
+
+public async Task<Dictionary<string, decimal>> CalculateProfitabilityRatiosAsync(int documentId)
+{
+    var ratios = new Dictionary<string, decimal>();
+    var summary = await GetFinancialSummaryAsync(documentId);
+    
+    // Gross Profit Margin
+    if (summary.TotalRevenue > 0)
+    {
+        ratios["GrossProfitMargin"] = (summary.GrossProfit / summary.TotalRevenue) * 100;
+        ratios["NetProfitMargin"] = (summary.NetIncome / summary.TotalRevenue) * 100;
+        ratios["OperatingProfitMargin"] = (summary.OperatingIncome / summary.TotalRevenue) * 100;
+    }
+    
+    // Return on Assets (ROA)
+    if (summary.TotalAssets > 0)
+    {
+        ratios["ReturnOnAssets"] = (summary.NetIncome / summary.TotalAssets) * 100;
+    }
+    
+    // Return on Equity (ROE)
+    if (summary.Equity > 0)
+    {
+        ratios["ReturnOnEquity"] = (summary.NetIncome / summary.Equity) * 100;
+    }
+    
+    return ratios;
+}
+
+3. CalculateLiquidityRatiosAsync:
+
+public async Task<Dictionary<string, decimal>> CalculateLiquidityRatiosAsync(int documentId)
+{
+    var ratios = new Dictionary<string, decimal>();
+    var summary = await GetFinancialSummaryAsync(documentId);
+    
+    // Current Ratio
+    if (summary.TotalLiabilities > 0)
+    {
+        ratios["CurrentRatio"] = summary.TotalAssets / summary.TotalLiabilities;
+    }
+    
+    // Debt to Equity Ratio
+    if (summary.Equity > 0)
+    {
+        ratios["DebtToEquity"] = summary.TotalLiabilities / summary.Equity;
+    }
+    
+    // Debt to Assets Ratio
+    if (summary.TotalAssets > 0)
+    {
+        ratios["DebtToAssets"] = (summary.TotalLiabilities / summary.TotalAssets) * 100;
+    }
+    
+    // Equity Ratio
+    if (summary.TotalAssets > 0)
+    {
+        ratios["EquityRatio"] = (summary.Equity / summary.TotalAssets) * 100;
+    }
+    
+    return ratios;
+}
+
+4. CalculateEfficiencyRatiosAsync:
+
+public async Task<Dictionary<string, decimal>> CalculateEfficiencyRatiosAsync(int documentId)
+{
+    var ratios = new Dictionary<string, decimal>();
+    var summary = await GetFinancialSummaryAsync(documentId);
+    
+    // Asset Turnover
+    if (summary.TotalAssets > 0)
+    {
+        ratios["AssetTurnover"] = summary.TotalRevenue / summary.TotalAssets;
+    }
+    
+    // Operating Expense Ratio
+    if (summary.TotalRevenue > 0)
+    {
+        ratios["OperatingExpenseRatio"] = (summary.TotalExpenses / summary.TotalRevenue) * 100;
+    }
+    
+    return ratios;
+}
+
+Add XML documentation explaining each ratio and its interpretation
+```
+
+---
+
+## Step 5.5: Implement Financial Service (Part 3 - Trend Analysis)
+
+### Copilot Prompt for Trend Analysis:
+```
+In FinancialService.cs, implement trend analysis methods:
+
+1. AnalyzeTrendsByPeriodAsync:
+
+public async Task<TrendAnalysisDto> AnalyzeTrendsByPeriodAsync(List<string> periods)
+{
+    try
+    {
+        _logger.LogInformation($"Analyzing trends for {periods.Count} periods");
+        
+        var allData = new List<FinancialData>();
+        foreach (var period in periods)
+        {
+            var periodData = await _dataRepo.GetByPeriodAsync(period);
+            allData.AddRange(periodData);
+        }
+        
+        if (!allData.Any())
+        {
+            throw new InvalidOperationException("No data found for specified periods");
+        }
+        
+        // Group by period and calculate totals
+        var periodTotals = allData
+            .GroupBy(d => d.Period)
+            .OrderBy(g => g.Key)
+            .Select(g => new TrendDataPoint
+            {
+                Period = g.Key,
+                Value = g.Sum(d => d.Amount)
+            })
+            .ToList();
+        
+        // Calculate percentage changes
+        for (int i = 1; i < periodTotals.Count; i++)
+        {
+            var previous = periodTotals[i - 1].Value;
+            var current = periodTotals[i].Value;
+            
+            if (previous != 0)
+            {
+                periodTotals[i].PercentageChange = ((current - previous) / previous) * 100;
+            }
+        }
+        
+        // Determine trend direction
+        var trendDirection = DetermineTrendDirection(periodTotals);
+        
+        // Calculate average growth rate
+        var growthRates = periodTotals
+            .Where(p => p.PercentageChange.HasValue)
+            .Select(p => p.PercentageChange.Value)
+            .ToList();
+        
+        var avgGrowthRate = growthRates.Any() ? growthRates.Average() : 0;
+        
+        var result = new TrendAnalysisDto
+        {
+            Category = "Overall",
+            DataPoints = periodTotals,
+            TrendDirection = trendDirection,
+            AverageGrowthRate = avgGrowthRate,
+            StartPeriod = periods.First(),
+            EndPeriod = periods.Last(),
+            TotalChange = periodTotals.Last().Value - periodTotals.First().Value,
+            PercentageChange = periodTotals.First().Value != 0 
+                ? ((periodTotals.Last().Value - periodTotals.First().Value) / periodTotals.First().Value) * 100 
+                : 0
+        };
+        
+        // Generate insights
+        result.Insights = GenerateTrendInsights(result);
+        
+        return result;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error analyzing trends");
+        throw;
+    }
+}
+
+2. GetTrendDataAsync:
+
+public async Task<List<TrendDataPoint>> GetTrendDataAsync(string category, List<string> periods)
+{
+    var dataPoints = new List<TrendDataPoint>();
+    
+    foreach (var period in periods)
+    {
+        var periodData = await _dataRepo.GetByPeriodAsync(period);
+        var categoryData = periodData.Where(d => d.Category.Equals(category, StringComparison.OrdinalIgnoreCase));
+        
+        var total = categoryData.Sum(d => d.Amount);
+        
+        dataPoints.Add(new TrendDataPoint
+        {
+            Period = period,
+            Value = total
+        });
+    }
+    
+    // Calculate percentage changes
+    for (int i = 1; i < dataPoints.Count; i++)
+    {
+        var previous = dataPoints[i - 1].Value;
+        var current = dataPoints[i].Value;
+        
+        if (previous != 0)
+        {
+            dataPoints[i].PercentageChange = ((current - previous) / previous) * 100;
+        }
+    }
+    
+    return dataPoints;
+}
+
+3. CalculateGrowthRateAsync:
+
+public async Task<decimal> CalculateGrowthRateAsync(string category, string startPeriod, string endPeriod)
+{
+    var startData = await _dataRepo.GetByPeriodAsync(startPeriod);
+    var endData = await _dataRepo.GetByPeriodAsync(endPeriod);
+    
+    var startValue = startData
+        .Where(d => d.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
+        .Sum(d => d.Amount);
+    
+    var endValue = endData
+        .Where(d => d.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
+        .Sum(d => d.Amount);
+    
+    if (startValue == 0)
+        return 0;
+    
+    return ((endValue - startValue) / startValue) * 100;
+}
+
+4. Helper methods:
+
+private string DetermineTrendDirection(List<TrendDataPoint> dataPoints)
+{
+    if (dataPoints.Count < 2)
+        return "Insufficient Data";
+    
+    var changes = dataPoints
+        .Where(p => p.PercentageChange.HasValue)
+        .Select(p => p.PercentageChange.Value)
+        .ToList();
+    
+    if (!changes.Any())
+        return "Stable";
+    
+    var avgChange = changes.Average();
+    
+    if (avgChange > 5)
+        return "Increasing";
+    else if (avgChange < -5)
+        return "Decreasing";
+    else
+        return "Stable";
+}
+
+private List<string> GenerateTrendInsights(TrendAnalysisDto trend)
+{
+    var insights = new List<string>();
+    
+    insights.Add($"Overall trend is {trend.TrendDirection.ToLower()} with average growth rate of {trend.AverageGrowthRate:F2}%");
+    
+    if (trend.PercentageChange > 0)
+    {
+        insights.Add($"Total increase of {trend.PercentageChange:F2}% from {trend.StartPeriod} to {trend.EndPeriod}");
+    }
+    else if (trend.PercentageChange < 0)
+    {
+        insights.Add($"Total decrease of {Math.Abs(trend.PercentageChange):F2}% from {trend.StartPeriod} to {trend.EndPeriod}");
+    }
+    
+    // Identify volatility
+    if (trend.DataPoints.Any(p => p.PercentageChange.HasValue))
+    {
+        var volatility = trend.DataPoints
+            .Where(p => p.PercentageChange.HasValue)
+            .Select(p => Math.Abs(p.PercentageChange.Value))
+            .Average();
+        
+        if (volatility > 20)
+        {
+            insights.Add($"High volatility detected with average absolute change of {volatility:F2}%");
+        }
+    }
+    
+    return insights;
+}
+```
+
+---
+
+## Step 5.6: Implement Financial Service (Part 4 - Comparison)
+
+### Copilot Prompt for Comparison Methods:
+```
+In FinancialService.cs, implement comparison methods:
+
+1. ComparePeriodsAsync:
+
+public async Task<ComparisonResultDto> ComparePeriodsAsync(string period1, string period2)
+{
+    try
+    {
+        _logger.LogInformation($"Comparing periods: {period1} vs {period2}");
+        
+        var data1 = await _dataRepo.GetByPeriodAsync(period1);
+        var data2 = await _dataRepo.GetByPeriodAsync(period2);
+        
+        if (!data1.Any() || !data2.Any())
+        {
+            throw new InvalidOperationException("Insufficient data for comparison");
+        }
+        
+        var result = new ComparisonResultDto
+        {
+            Period1 = period1,
+            Period2 = period2,
+            ComparisonDate = DateTime.UtcNow
+        };
+        
+        // Get all unique categories
+        var categories = data1.Select(d => d.Category)
+            .Union(data2.Select(d => d.Category))
+            .Distinct();
+        
+        foreach (var category in categories)
+        {
+            var value1 = data1.Where(d => d.Category == category).Sum(d => d.Amount);
+            var value2 = data2.Where(d => d.Category == category).Sum(d => d.Amount);
+            
+            var variance = value2 - value1;
+            var percentageChange = value1 != 0 ? (variance / value1) * 100 : 0;
+            
+            var metric = new ComparisonMetric
+            {
+                Category = category,
+                Value1 = value1,
+                Value2 = value2,
+                Variance = variance,
+                PercentageChange = percentageChange,
+                ChangeType = variance > 0 ? "Increase" : variance < 0 ? "Decrease" : "NoChange"
+            };
+            
+            result.Metrics[category] = metric;
+            
+            // Track significant changes (> 10%)
+            if (Math.Abs(percentageChange) > 10)
+            {
+                result.SignificantChanges.Add($"{category}: {percentageChange:F2}% change ({metric.ChangeType})");
+            }
+        }
+        
+        // Determine overall trend
+        var totalChange1 = data1.Sum(d => d.Amount);
+        var totalChange2 = data2.Sum(d => d.Amount);
+        
+        if (totalChange2 > totalChange1)
+            result.OverallTrend = "Growth";
+        else if (totalChange2 < totalChange1)
+            result.OverallTrend = "Decline";
+        else
+            result.OverallTrend = "Stable";
+        
+        return result;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error comparing periods");
+        throw;
+    }
+}
+
+2. CompareDocumentsAsync:
+
+public async Task<ComparisonResultDto> CompareDocumentsAsync(int documentId1, int documentId2)
+{
+    var doc1 = await _documentRepo.GetWithDataAsync(documentId1);
+    var doc2 = await _documentRepo.GetWithDataAsync(documentId2);
+    
+    if (doc1 == null || doc2 == null)
+    {
+        throw new ArgumentException("One or both documents not found");
+    }
+    
+    // Use the period comparison logic with document data
+    var period1 = doc1.FinancialDataRecords.FirstOrDefault()?.Period ?? "Document 1";
+    var period2 = doc2.FinancialDataRecords.FirstOrDefault()?.Period ?? "Document 2";
+    
+    return await ComparePeriodsAsync(period1, period2);
+}
+
+3. GetVarianceAnalysisAsync:
+
+public async Task<Dictionary<string, decimal>> GetVarianceAnalysisAsync(int documentId1, int documentId2)
+{
+    var comparison = await CompareDocumentsAsync(documentId1, documentId2);
+    
+    return comparison.Metrics.ToDictionary(
+        m => m.Key,
+        m => m.Value.Variance
+    );
+}
+```
+
+---
+
+## Step 5.7: Implement Financial Service (Part 5 - Forecasting)
+
+### Copilot Prompt for Forecasting Methods:
+```
+In FinancialService.cs, implement forecasting methods:
+
+1. GenerateForecastAsync:
+
+public async Task<ForecastResultDto> GenerateForecastAsync(string category, int periodsAhead)
+{
+    try
+    {
+        _logger.LogInformation($"Generating forecast for {category}, {periodsAhead} periods ahead");
+        
+        // Get historical data (last 12 periods or available)
+        var allData = await _dataRepo.GetAllAsync();
+        var categoryData = allData
+            .Where(d => d.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(d => d.Period)
+            .OrderBy(g => g.Key)
+            .Select(g => g.Sum(d => d.Amount))
+            .ToList();
+        
+        if (categoryData.Count < 3)
+        {
+            throw new InvalidOperationException("Insufficient historical data for forecasting (need at least 3 periods)");
+        }
+        
+        // Simple linear regression forecast
+        var forecasted = ForecastLinear(categoryData, periodsAhead);
+        
+        var result = new ForecastResultDto
+        {
+            Category = category,
+            Method = "Linear Regression",
+            ConfidenceLevel = 70, // Simplified confidence level
+            GeneratedDate = DateTime.UtcNow
+        };
+        
+        // Generate forecasted periods
+        var lastPeriod = allData.Max(d => d.Period);
+        for (int i = 1; i <= periodsAhead; i++)
+        {
+            var forecastedValue = forecasted[i - 1];
+            var margin = forecastedValue * 0.1m; // 10% margin of error
+            
+            result.ForecastedValues.Add(new ForecastDataPoint
+            {
+                Period = $"{lastPeriod}+{i}",
+                ForecastedValue = forecastedValue,
+                LowerBound = forecastedValue - margin,
+                UpperBound = forecastedValue + margin
+            });
+        }
+        
+        result.Assumptions.Add("Based on linear trend analysis of historical data");
+        result.Assumptions.Add("Assumes consistent market conditions");
+        
+        result.RiskFactors.Add("Market volatility could impact actual values");
+        result.RiskFactors.Add("External economic factors not considered");
+        
+        return result;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error generating forecast");
+        throw;
+    }
+}
+
+2. GenerateSimpleForecastAsync:
+
+public async Task<ForecastResultDto> GenerateSimpleForecastAsync(List<decimal> historicalValues, int periodsAhead)
+{
+    var forecasted = ForecastLinear(historicalValues, periodsAhead);
+    
+    var result = new ForecastResultDto
+    {
+        Category = "General",
+        Method = "Simple Linear Forecast",
+        ConfidenceLevel = 65,
+        GeneratedDate = DateTime.UtcNow
+    };
+    
+    for (int i = 1; i <= periodsAhead; i++)
+    {
+        var value = forecasted[i - 1];
+        var margin = value * 0.15m; // 15% margin
+        
+        result.ForecastedValues.Add(new ForecastDataPoint
+        {
+            Period = $"Period {i}",
+            ForecastedValue = value,
+            LowerBound = value - margin,
+            UpperBound = value + margin
+        });
+    }
+    
+    return result;
+}
+
+3. CalculateMovingAverageAsync:
+
+public async Task<List<decimal>> CalculateMovingAverageAsync(List<decimal> values, int period)
+{
+    var movingAverages = new List<decimal>();
+    
+    if (values.Count < period)
+    {
+        return movingAverages;
+    }
+    
+    for (int i = period - 1; i < values.Count; i++)
+    {
+        var sum = values.Skip(i - period + 1).Take(period).Sum();
+        movingAverages.Add(sum / period);
+    }
+    
+    return movingAverages;
+}
+
+4. Helper method for linear forecasting:
+
+private List<decimal> ForecastLinear(List<decimal> historicalValues, int periodsAhead)
+{
+    var n = historicalValues.Count;
+    
+    // Calculate linear regression parameters
+    var sumX = 0m;
+    var sumY = 0m;
+    var sumXY = 0m;
+    var sumX2 = 0m;
+    
+    for (int i = 0; i < n; i++)
+    {
+        var x = i + 1;
+        var y = historicalValues[i];
+        
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+    }
+    
+    // Calculate slope and intercept
+    var slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    var intercept = (sumY - slope * sumX) / n;
+    
+    // Generate forecasts
+    var forecasts = new List<decimal>();
+    for (int i = 1; i <= periodsAhead; i++)
+    {
+        var x = n + i;
+        var forecast = slope * x + intercept;
+        forecasts.Add(Math.Max(0, forecast)); // Ensure non-negative
+    }
+    
+    return forecasts;
+}
+```
+
+---
+
+## Step 5.8: Implement Financial Service (Part 6 - AI Integration & Anomaly Detection)
+
+### Copilot Prompt for AI Integration and Anomaly Detection:
+```
+In FinancialService.cs, implement AI integration and anomaly detection methods:
+
+1. GenerateAIInsightsAsync:
+
+public async Task<AnalysisResponseDto> GenerateAIInsightsAsync(int documentId, AnalysisType analysisType)
+{
+    try
+    {
+        _logger.LogInformation($"Generating AI insights for document {documentId}, type: {analysisType}");
+        
+        var stopwatch = Stopwatch.StartNew();
+        
+        // Get document and data
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+        
+        var data = document.FinancialDataRecords.ToList();
+        
+        // Generate AI analysis based on type
+        string aiResponse = analysisType switch
+        {
+            AnalysisType.Summary => await _aiService.GenerateSummaryAsync(data),
+            AnalysisType.TrendAnalysis => await _aiService.AnalyzeTrendsAsync(data, data.FirstOrDefault()?.Period ?? ""),
+            AnalysisType.AnomalyDetection => await _aiService.DetectAnomaliesAsync(data),
+            _ => await _aiService.GenerateSummaryAsync(data)
+        };
+        
+        stopwatch.Stop();
+        
+        // Parse response into structured format
+        var response = new AnalysisResponseDto
+        {
+            DocumentId = documentId,
+            AnalysisType = analysisType,
+            DetailedAnalysis = aiResponse,
+            ExecutionTime = (int)stopwatch.ElapsedMilliseconds,
+            GeneratedDate = DateTime.UtcNow,
+            ModelUsed = "Llama 3.2"
+        };
+        
+        // Extract key findings and recommendations
+        response.KeyFindings = AIResponseParser.ExtractKeyFindings(aiResponse);
+        response.Recommendations = AIResponseParser.ExtractRecommendations(aiResponse);
+        response.Summary = aiResponse.Length > 500 
+            ? aiResponse.Substring(0, 500) + "..." 
+            : aiResponse;
+        
+        // Save analysis to database
+        var analysis = new AIAnalysis
+        {
+            DocumentId = documentId,
+            AnalysisType = analysisType.ToString(),
+            Prompt = $"Generated {analysisType} analysis",
+            Response = aiResponse,
+            ModelUsed = "Llama 3.2",
+            ExecutionTime = (int)stopwatch.ElapsedMilliseconds,
+            CreatedDate = DateTime.UtcNow
+        };
+        
+        // Note: You'll need to inject IAIAnalysisRepository to save this
+        
+        return response;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error generating AI insights");
+        throw;
+    }
+}
+
+2. GenerateCustomAnalysisAsync:
+
+public async Task<AnalysisResponseDto> GenerateCustomAnalysisAsync(int documentId, string question)
+{
+    try
+    {
+        _logger.LogInformation($"Generating custom AI analysis for document {documentId}");
+        
+        var stopwatch = Stopwatch.StartNew();
+        
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+        
+        var data = document.FinancialDataRecords.ToList();
+        
+        // Generate custom analysis
+        var aiResponse = await _aiService.CustomAnalysisAsync(question, data);
+        
+        stopwatch.Stop();
+        
+        var response = new AnalysisResponseDto
+        {
+            DocumentId = documentId,
+            AnalysisType = AnalysisType.Custom,
+            DetailedAnalysis = aiResponse,
+            Summary = question,
+            ExecutionTime = (int)stopwatch.ElapsedMilliseconds,
+            GeneratedDate = DateTime.UtcNow,
+            ModelUsed = "Llama 3.2"
+        };
+        
+        response.KeyFindings = AIResponseParser.ExtractKeyFindings(aiResponse);
+        response.Recommendations = AIResponseParser.ExtractRecommendations(aiResponse);
+        
+        return response;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error generating custom AI analysis");
+        throw;
+    }
+}
+
+3. GenerateFinancialNarrativeAsync:
+
+public async Task<string> GenerateFinancialNarrativeAsync(int documentId)
+{
+    var summary = await GetFinancialSummaryAsync(documentId);
+    var ratios = await CalculateFinancialRatiosAsync(documentId);
+    
+    var prompt = $@"Generate a professional financial narrative based on the following data:
+
+Summary:
+- Total Revenue: {summary.TotalRevenue:C}
+- Total Expenses: {summary.TotalExpenses:C}
+- Net Income: {summary.NetIncome:C}
+- Total Assets: {summary.TotalAssets:C}
+- Total Liabilities: {summary.TotalLiabilities:C}
+
+Key Ratios:
+{string.Join("\n", ratios.Select(r => $"- {r.Key}: {r.Value:F2}"))}
+
+Provide a concise 2-3 paragraph narrative explaining the financial position.";
+    
+    return await _aiService.GenerateResponseAsync(prompt);
+}
+
+4. DetectAnomaliesAsync:
+
+public async Task<List<AnomalyDto>> DetectAnomaliesAsync(int documentId)
+{
+    try
+    {
+        _logger.LogInformation($"Detecting anomalies in document {documentId}");
+        
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+        
+        var data = document.FinancialDataRecords.ToList();
+        
+        return await DetectOutliersAsync(data);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error detecting anomalies");
+        throw;
+    }
+}
+
+5. DetectOutliersAsync:
+
+public async Task<List<AnomalyDto>> DetectOutliersAsync(List<FinancialData> data)
+{
+    var anomalies = new List<AnomalyDto>();
+    
+    if (!data.Any())
+        return anomalies;
+    
+    // Group by category for analysis
+    var categoryGroups = data.GroupBy(d => d.Category);
+    
+    foreach (var group in categoryGroups)
+    {
+        var values = group.Select(d => d.Amount).ToList();
+        
+        if (values.Count < 3)
+            continue;
+        
+        // Calculate statistics
+        var mean = values.Average();
+        var stdDev = CalculateStandardDeviation(values.Select(v => (decimal)v).ToList());
+        
+        // Detect outliers (> 3 standard deviations from mean)
+        foreach (var record in group)
+        {
+            var deviation = Math.Abs((double)record.Amount - (double)mean);
+            var deviationInStdDev = stdDev > 0 ? deviation / stdDev : 0;
+            
+            if (deviationInStdDev > 3)
+            {
+                var severity = deviationInStdDev > 5 ? "High" : deviationInStdDev > 4 ? "Medium" : "Low";
+                
+                anomalies.Add(new AnomalyDto
+                {
+                    RecordId = record.Id,
+                    AccountName = record.AccountName,
+                    Period = record.Period,
+                    Value = record.Amount,
+                    ExpectedValue = (decimal)mean,
+                    Deviation = (decimal)deviation,
+                    DeviationPercentage = mean != 0 ? (decimal)(deviation / (double)mean * 100) : 0,
+                    Severity = severity,
+                    Reason = $"Value is {deviationInStdDev:F2} standard deviations from category mean",
+                    DetectedDate = DateTime.UtcNow
+                });
+            }
+        }
+    }
+    
+    return anomalies;
+}
+
+6. IsAnomalousValueAsync:
+
+public async Task<bool> IsAnomalousValueAsync(decimal value, string category, string period)
+{
+    var data = await _dataRepo.GetByCategoryAsync(category);
+    var periodData = data.Where(d => d.Period == period).ToList();
+    
+    if (!periodData.Any())
+        return false;
+    
+    var values = periodData.Select(d => d.Amount).ToList();
+    var mean = values.Average();
+    var stdDev = CalculateStandardDeviation(values);
+    
+    var deviation = Math.Abs((double)value - (double)mean);
+    var deviationInStdDev = stdDev > 0 ? deviation / stdDev : 0;
+    
+    return deviationInStdDev > 3;
+}
+
+7. Helper method (reuse from previous):
+
+private double CalculateStandardDeviation(List<decimal> values)
+{
+    if (!values.Any())
+        return 0;
+    
+    var avg = values.Average();
+    var sumOfSquaresOfDifferences = values
+        .Select(val => (double)(val - avg) * (double)(val - avg))
+        .Sum();
+    
+    return Math.Sqrt(sumOfSquaresOfDifferences / values.Count);
+}
+
+Add using statements:
+using System.Diagnostics;
+using FinancialAnalysisAssistant.Core.Enums;
+using FinancialAnalysisAssistant.Services.AI;
+```
+
+---
+
+## Step 5.9: Register Financial Service
+
+### Copilot Prompt for DI Registration:
+```
+In FinancialAnalysisAssistant.Web/Program.cs, register the financial service:
+
+After other service registrations, add:
+
+builder.Services.AddScoped<IFinancialService, FinancialService>();
+
+Add using statement:
+using FinancialAnalysisAssistant.Services.Financial;
+
+This gives each request its own FinancialService instance with all dependencies injected
+```
+
+---
+
+## Step 5.10: Create Financial Service Tests
+
+### Copilot Prompt for Test Scenarios:
+```
+Create test scenarios to verify financial service functionality:
+
+Test cases to verify:
+
+1. Summary Calculation:
+   - Test with valid document ID
+   - Test with document containing multiple categories
+   - Test calculation of net income
+   - Verify category breakdown
+
+2. Ratio Analysis:
+   - Test profitability ratios
+   - Test liquidity ratios
+   - Test with zero values (division by zero handling)
+   - Verify ratio interpretations
+
+3. Trend Analysis:
+   - Test with multiple periods
+   - Test growth rate calculations
+   - Verify trend direction detection
+   - Test with insufficient data
+
+4. Comparison:
+   - Test period comparison
+   - Test document comparison
+   - Verify variance calculations
+   - Test significant changes detection
+
+5. Forecasting:
+   - Test linear forecast
+   - Test with limited historical data
+   - Verify forecast bounds
+   - Test moving average
+
+6. Anomaly Detection:
+   - Test outlier detection
+   - Test with normal distribution
+   - Test with single outlier
+   - Verify severity levels
+
+7. AI Integration:
+   - Test AI insights generation
+   - Test custom analysis
+   - Test narrative generation
+   - Verify response parsing
+
+Create a test page: FinancialServiceTest.razor in Web/Pages/
+```
+
+---
+
+## Step 5.11: Verification Checklist
+
+Before moving to Phase 6, verify:
+
+- [ ] IFinancialService interface created with all methods
+- [ ] All DTOs created (5 new DTOs)
+- [ ] FinancialService implementation complete
+- [ ] Summary methods working
+- [ ] Ratio analysis methods working
+- [ ] Trend analysis methods working
+- [ ] Comparison methods working
+- [ ] Forecasting methods working
+- [ ] AI integration methods working
+- [ ] Anomaly detection methods working
+- [ ] Service registered in DI container
+- [ ] All helper methods implemented
+- [ ] Error handling in place
+- [ ] Logging implemented
+- [ ] No compilation errors
+
+**Manual Test:**
+1. Run the application
+2. Upload a financial document
+3. Generate financial summary
+4. Calculate ratios
+5. Verify calculations are correct
+6. Test AI insights generation
+
+---
+
+## Next Phase Preview
+
+**Phase 6** will cover:
+- Blazor UI components with MudBlazor
+- Dashboard page
+- Document upload page
+- Analysis results visualization
+- Charts and graphs integration
+
+---
+
+## Troubleshooting
+
+### Common Financial Service Issues:
+
+**Issue:** "Division by zero" in ratio calculations  
+**Solution:** Add null checks and zero checks before all divisions
+
+**Issue:** "Insufficient data for analysis"  
+**Solution:** Validate data availability before processing, return meaningful error messages
+
+**Issue:** AI service timeout during analysis  
+**Solution:** Increase timeout in AI configuration, implement async properly
+
+**Issue:** Incorrect trend calculations  
+**Solution:** Verify data is ordered by period correctly, check date/period parsing
+
+**Issue:** Anomaly detection too sensitive  
+**Solution:** Adjust standard deviation threshold (currently 3, can increase to 3.5 or 4)
+
+---
+
+## Performance Optimization Tips
+
+1. **Caching:**
+   - Cache frequently accessed summaries
+   - Cache ratio calculations
+   - Implement response caching for AI results
+
+2. **Database Queries:**
+   - Use efficient LINQ queries
+   - Load only required data
+   - Use projections to limit data transfer
+
+3. **Parallel Processing:**
+   - Calculate multiple ratios in parallel
+   - Process multiple periods concurrently
+   - Use Task.WhenAll for independent operations
+
+4. **AI Optimization:**
+   - Batch similar AI requests
+   - Cache common analyses
+   - Use streaming for large responses
+
+---
+
+## Files Created This Phase
+
+```
+? FinancialAnalysisAssistant.Services/Financial/IFinancialService.cs
+? FinancialAnalysisAssistant.Services/Financial/FinancialService.cs
+? FinancialAnalysisAssistant.Core/DTOs/FinancialSummaryDto.cs
+? FinancialAnalysisAssistant.Core/DTOs/TrendAnalysisDto.cs
+? FinancialAnalysisAssistant.Core/DTOs/ComparisonResultDto.cs
+? FinancialAnalysisAssistant.Core/DTOs/ForecastResultDto.cs
+? FinancialAnalysisAssistant.Core/DTOs/AnomalyDto.cs
+```
+
+**Total Files:** 7  
+**Lines of Code:** ~2500-3000 (estimated)
+
+---
+
+## Advanced Features to Consider (Future Enhancement)
+
+1. **Machine Learning Integration:**
+   - Train custom models on historical data
+   - Improve forecast accuracy
+   - Pattern recognition
+
+2. **Industry Benchmarking:**
+   - Compare against industry standards
+   - Percentile rankings
+   - Best practices recommendations
+
+3. **Scenario Analysis:**
+   - What-if scenarios
+   - Sensitivity analysis
+   - Monte Carlo simulations
+
+4. **Advanced Forecasting:**
+   - ARIMA models
+   - Exponential smoothing
+   - Neural network predictions
+
+5. **Real-time Analysis:**
+   - Live data processing
+   - Streaming analytics
+   - Real-time alerts
+
+---
+
+## Progress Tracking
+
+**Phase 5 Status:** Ready to implement  
+**Next Phase:** Phase 6 - Blazor UI & Visualization  
+**Overall Progress:** 62.5% (5 of 8 phases)
+
+---
+
+## Summary
+
+Phase 5 has established comprehensive financial analysis capabilities:
+- ? Complete financial summary generation
+- ? Comprehensive ratio analysis (profitability, liquidity, efficiency)
+- ? Trend analysis with growth rate calculations
+- ? Period and document comparison
+- ? Linear regression forecasting
+- ? AI-powered insights integration
+- ? Statistical anomaly detection
+- ? Robust error handling and logging
+
+The service layer is now complete and ready to be consumed by the UI layer in Phase 6!

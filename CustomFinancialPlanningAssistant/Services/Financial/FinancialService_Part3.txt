@@ -1,0 +1,387 @@
+// PART 3 OF FINANCIALSERVICE - FORECASTING, AI, AND ANOMALY DETECTION
+// Copy these into FinancialService.cs after Part 2
+
+#region Forecasting Methods
+
+public async Task<ForecastResultDto> GenerateForecastAsync(string category, int periodsAhead)
+{
+    try
+    {
+        _logger.LogInformation("Generating forecast for {Category}, {PeriodsAhead} periods ahead", category, periodsAhead);
+
+        var allData = await _dataRepo.GetAllAsync();
+        var categoryData = allData
+            .Where(d => d.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(d => d.Period)
+            .OrderBy(g => g.Key)
+            .Select(g => g.Sum(d => d.Amount))
+            .ToList();
+
+        if (categoryData.Count < 3)
+        {
+            throw new InvalidOperationException("Insufficient historical data for forecasting (need at least 3 periods)");
+        }
+
+        var forecasted = ForecastLinear(categoryData, periodsAhead);
+
+        var result = new ForecastResultDto
+        {
+            Category = category,
+            Method = "Linear Regression",
+            ConfidenceLevel = 70,
+            GeneratedDate = DateTime.UtcNow
+        };
+
+        var lastPeriod = allData.Max(d => d.Period);
+        for (int i = 1; i <= periodsAhead; i++)
+        {
+            var forecastedValue = forecasted[i - 1];
+            var margin = forecastedValue * 0.1m;
+
+            result.ForecastedValues.Add(new ForecastDataPoint
+            {
+                Period = $"{lastPeriod}+{i}",
+                ForecastedValue = forecastedValue,
+                LowerBound = forecastedValue - margin,
+                UpperBound = forecastedValue + margin
+            });
+        }
+
+        result.Assumptions.Add("Based on linear trend analysis of historical data");
+        result.Assumptions.Add("Assumes consistent market conditions");
+
+        result.RiskFactors.Add("Market volatility could impact actual values");
+        result.RiskFactors.Add("External economic factors not considered");
+
+        return result;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error generating forecast");
+        throw;
+    }
+}
+
+public async Task<ForecastResultDto> GenerateSimpleForecastAsync(List<decimal> historicalValues, int periodsAhead)
+{
+    var forecasted = ForecastLinear(historicalValues, periodsAhead);
+
+    var result = new ForecastResultDto
+    {
+        Category = "General",
+        Method = "Simple Linear Forecast",
+        ConfidenceLevel = 65,
+        GeneratedDate = DateTime.UtcNow
+    };
+
+    for (int i = 1; i <= periodsAhead; i++)
+    {
+        var value = forecasted[i - 1];
+        var margin = value * 0.15m;
+
+        result.ForecastedValues.Add(new ForecastDataPoint
+        {
+            Period = $"Period {i}",
+            ForecastedValue = value,
+            LowerBound = value - margin,
+            UpperBound = value + margin
+        });
+    }
+
+    return result;
+}
+
+public async Task<List<decimal>> CalculateMovingAverageAsync(List<decimal> values, int period)
+{
+    var movingAverages = new List<decimal>();
+
+    if (values.Count < period)
+    {
+        return movingAverages;
+    }
+
+    for (int i = period - 1; i < values.Count; i++)
+    {
+        var sum = values.Skip(i - period + 1).Take(period).Sum();
+        movingAverages.Add(sum / period);
+    }
+
+    return movingAverages;
+}
+
+private List<decimal> ForecastLinear(List<decimal> historicalValues, int periodsAhead)
+{
+    var n = historicalValues.Count;
+
+    var sumX = 0m;
+    var sumY = 0m;
+    var sumXY = 0m;
+    var sumX2 = 0m;
+
+    for (int i = 0; i < n; i++)
+    {
+        var x = i + 1;
+        var y = historicalValues[i];
+
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+    }
+
+    var slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    var intercept = (sumY - slope * sumX) / n;
+
+    var forecasts = new List<decimal>();
+    for (int i = 1; i <= periodsAhead; i++)
+    {
+        var x = n + i;
+        var forecast = slope * x + intercept;
+        forecasts.Add(Math.Max(0, forecast));
+    }
+
+    return forecasts;
+}
+
+#endregion
+
+#region AI-Enhanced Analysis Methods
+
+public async Task<AnalysisResponseDto> GenerateAIInsightsAsync(int documentId, AnalysisType analysisType)
+{
+    try
+    {
+        _logger.LogInformation("Generating AI insights for document {DocumentId}, type: {AnalysisType}", documentId, analysisType);
+
+        var stopwatch = Stopwatch.StartNew();
+
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+
+        var data = document.FinancialDataRecords.ToList();
+
+        string aiResponse = analysisType switch
+        {
+            AnalysisType.Summary => await _aiService.GenerateSummaryAsync(data),
+            AnalysisType.TrendAnalysis => await _aiService.AnalyzeTrendsAsync(data, data.FirstOrDefault()?.Period ?? ""),
+            AnalysisType.AnomalyDetection => await _aiService.DetectAnomaliesAsync(data),
+            _ => await _aiService.GenerateSummaryAsync(data)
+        };
+
+        stopwatch.Stop();
+
+        var response = new AnalysisResponseDto
+        {
+            DocumentId = documentId,
+            AnalysisType = analysisType,
+            DetailedAnalysis = aiResponse,
+            ExecutionTime = (int)stopwatch.ElapsedMilliseconds,
+            GeneratedDate = DateTime.UtcNow,
+            ModelUsed = "Llama 3.2"
+        };
+
+        response.KeyFindings = AIResponseParser.ExtractKeyFindings(aiResponse);
+        response.Recommendations = AIResponseParser.ExtractRecommendations(aiResponse);
+        response.Summary = aiResponse.Length > 500
+            ? aiResponse.Substring(0, 500) + "..."
+            : aiResponse;
+
+        // Save analysis to database
+        var analysis = new AIAnalysis
+        {
+            DocumentId = documentId,
+            AnalysisType = analysisType.ToString(),
+            Prompt = $"Generated {analysisType} analysis",
+            Response = aiResponse,
+            ModelUsed = "Llama 3.2",
+            ExecutionTime = (int)stopwatch.ElapsedMilliseconds,
+            CreatedDate = DateTime.UtcNow
+        };
+
+        await _analysisRepo.AddAsync(analysis);
+        await _analysisRepo.SaveChangesAsync();
+
+        return response;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error generating AI insights");
+        throw;
+    }
+}
+
+public async Task<AnalysisResponseDto> GenerateCustomAnalysisAsync(int documentId, string question)
+{
+    try
+    {
+        _logger.LogInformation("Generating custom AI analysis for document {DocumentId}", documentId);
+
+        var stopwatch = Stopwatch.StartNew();
+
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+
+        var data = document.FinancialDataRecords.ToList();
+
+        var aiResponse = await _aiService.CustomAnalysisAsync(question, data);
+
+        stopwatch.Stop();
+
+        var response = new AnalysisResponseDto
+        {
+            DocumentId = documentId,
+            AnalysisType = AnalysisType.Custom,
+            DetailedAnalysis = aiResponse,
+            Summary = question,
+            ExecutionTime = (int)stopwatch.ElapsedMilliseconds,
+            GeneratedDate = DateTime.UtcNow,
+            ModelUsed = "Llama 3.2"
+        };
+
+        response.KeyFindings = AIResponseParser.ExtractKeyFindings(aiResponse);
+        response.Recommendations = AIResponseParser.ExtractRecommendations(aiResponse);
+
+        return response;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error generating custom AI analysis");
+        throw;
+    }
+}
+
+public async Task<string> GenerateFinancialNarrativeAsync(int documentId)
+{
+    var summary = await GetFinancialSummaryAsync(documentId);
+    var ratios = await CalculateFinancialRatiosAsync(documentId);
+
+    var prompt = $@"Generate a professional financial narrative based on the following data:
+
+Summary:
+- Total Revenue: {summary.TotalRevenue:C}
+- Total Expenses: {summary.TotalExpenses:C}
+- Net Income: {summary.NetIncome:C}
+- Total Assets: {summary.TotalAssets:C}
+- Total Liabilities: {summary.TotalLiabilities:C}
+
+Key Ratios:
+{string.Join("\n", ratios.Select(r => $"- {r.Key}: {r.Value:F2}"))}
+
+Provide a concise 2-3 paragraph narrative explaining the financial position.";
+
+    return await _aiService.GenerateResponseAsync(prompt);
+}
+
+#endregion
+
+#region Anomaly Detection Methods
+
+public async Task<List<AnomalyDto>> DetectAnomaliesAsync(int documentId)
+{
+    try
+    {
+        _logger.LogInformation("Detecting anomalies in document {DocumentId}", documentId);
+
+        var document = await _documentRepo.GetWithDataAsync(documentId);
+        if (document == null)
+        {
+            throw new ArgumentException($"Document {documentId} not found");
+        }
+
+        var data = document.FinancialDataRecords.ToList();
+
+        return await DetectOutliersAsync(data);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error detecting anomalies");
+        throw;
+    }
+}
+
+public async Task<List<AnomalyDto>> DetectOutliersAsync(List<FinancialData> data)
+{
+    var anomalies = new List<AnomalyDto>();
+
+    if (!data.Any())
+        return anomalies;
+
+    var categoryGroups = data.GroupBy(d => d.Category);
+
+    foreach (var group in categoryGroups)
+    {
+        var values = group.Select(d => d.Amount).ToList();
+
+        if (values.Count < 3)
+            continue;
+
+        var mean = values.Average();
+        var stdDev = CalculateStandardDeviation(values.Select(v => (decimal)v).ToList());
+
+        foreach (var record in group)
+        {
+            var deviation = Math.Abs((double)record.Amount - (double)mean);
+            var deviationInStdDev = stdDev > 0 ? deviation / stdDev : 0;
+
+            if (deviationInStdDev > 3)
+            {
+                var severity = deviationInStdDev > 5 ? "High" : deviationInStdDev > 4 ? "Medium" : "Low";
+
+                anomalies.Add(new AnomalyDto
+                {
+                    RecordId = record.Id,
+                    AccountName = record.AccountName,
+                    Period = record.Period,
+                    Value = record.Amount,
+                    ExpectedValue = (decimal)mean,
+                    Deviation = (decimal)deviation,
+                    DeviationPercentage = mean != 0 ? (decimal)(deviation / (double)mean * 100) : 0,
+                    Severity = severity,
+                    Reason = $"Value is {deviationInStdDev:F2} standard deviations from category mean",
+                    DetectedDate = DateTime.UtcNow
+                });
+            }
+        }
+    }
+
+    return anomalies;
+}
+
+public async Task<bool> IsAnomalousValueAsync(decimal value, string category, string period)
+{
+    var data = await _dataRepo.GetByCategoryAsync(category);
+    var periodData = data.Where(d => d.Period == period).ToList();
+
+    if (!periodData.Any())
+        return false;
+
+    var values = periodData.Select(d => d.Amount).ToList();
+    var mean = values.Average();
+    var stdDev = CalculateStandardDeviation(values);
+
+    var deviation = Math.Abs((double)value - (double)mean);
+    var deviationInStdDev = stdDev > 0 ? deviation / stdDev : 0;
+
+    return deviationInStdDev > 3;
+}
+
+private double CalculateStandardDeviation(List<decimal> values)
+{
+    if (!values.Any())
+        return 0;
+
+    var avg = values.Average();
+    var sumOfSquaresOfDifferences = values
+        .Select(val => (double)(val - avg) * (double)(val - avg))
+        .Sum();
+
+    return Math.Sqrt(sumOfSquaresOfDifferences / values.Count);
+}
+
+#endregion

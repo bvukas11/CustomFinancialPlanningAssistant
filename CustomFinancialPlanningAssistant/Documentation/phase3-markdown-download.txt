@@ -1,0 +1,884 @@
+# Financial Analysis Assistant - PHASE 3: AI Service Layer
+
+## Overview
+This phase implements the AI service layer that integrates with local Llama models (via Ollama) to provide intelligent financial analysis capabilities.
+
+**Estimated Time:** 3-4 hours  
+**Prerequisites:** Phase 1 & 2 completed, Ollama installed with Llama 3.2 models  
+**Dependencies:** OllamaSharp, Polly packages installed
+
+---
+
+## Step 3.0: Prerequisites - Install Ollama and Models
+
+### Install Ollama:
+```
+1. Download Ollama from https://ollama.ai
+2. Install Ollama on your system
+3. Verify installation:
+   Open terminal/command prompt and run: ollama --version
+
+4. Pull required models:
+   ollama pull llama3.2
+   ollama pull llama3.2-vision
+   ollama pull qwen2.5:8b
+
+5. Verify models are downloaded:
+   ollama list
+
+6. Start Ollama service (it usually auto-starts):
+   The service runs on http://localhost:11434 by default
+
+7. Test Ollama is running:
+   Open browser and navigate to http://localhost:11434
+   You should see "Ollama is running"
+```
+
+---
+
+## Step 3.1: Create AI Configuration Model
+
+### Copilot Prompt for AIModelConfiguration:
+```
+In FinancialAnalysisAssistant.Services/AI/, create AIModelConfiguration.cs:
+
+Create a configuration class for AI model settings with these properties:
+
+1. OllamaBaseUrl: string
+   - Default value: "http://localhost:11434"
+   - Description: Base URL for Ollama API
+
+2. DefaultTextModel: string
+   - Default value: "llama3.2"
+   - Description: Model for text-based analysis
+
+3. VisionModel: string
+   - Default value: "llama3.2-vision"
+   - Description: Model for image/document analysis
+
+4. AlternativeModel: string
+   - Default value: "qwen2.5:8b"
+   - Description: Alternative model for specialized tasks
+
+5. MaxTokens: int
+   - Default value: 4096
+   - Description: Maximum tokens for model responses
+
+6. Temperature: double
+   - Default value: 0.7
+   - Range: 0.0 to 1.0
+   - Description: Controls randomness (0=deterministic, 1=creative)
+
+7. TopP: double
+   - Default value: 0.9
+   - Range: 0.0 to 1.0
+   - Description: Nucleus sampling parameter
+
+8. TimeoutSeconds: int
+   - Default value: 120
+   - Description: Request timeout in seconds
+
+9. MaxRetries: int
+   - Default value: 3
+   - Description: Number of retry attempts for failed requests
+
+10. RetryDelaySeconds: int
+    - Default value: 2
+    - Description: Delay between retries
+
+Add:
+- Constructor with default values
+- XML documentation for all properties
+- Data annotations for validation ([Range] where appropriate)
+- Property to get TimeSpan from TimeoutSeconds: public TimeSpan Timeout => TimeSpan.FromSeconds(TimeoutSeconds);
+```
+
+---
+
+## Step 3.2: Add Configuration to appsettings.json
+
+### Copilot Prompt for appsettings.json:
+```
+In FinancialAnalysisAssistant.Web/appsettings.json, add the following AI configuration section:
+
+Add after the ConnectionStrings section:
+
+"AISettings": {
+  "OllamaBaseUrl": "http://localhost:11434",
+  "DefaultTextModel": "llama3.2",
+  "VisionModel": "llama3.2-vision",
+  "AlternativeModel": "qwen2.5:8b",
+  "MaxTokens": 4096,
+  "Temperature": 0.7,
+  "TopP": 0.9,
+  "TimeoutSeconds": 120,
+  "MaxRetries": 3,
+  "RetryDelaySeconds": 2
+}
+
+Also add a section for feature flags:
+
+"Features": {
+  "EnableAIAnalysis": true,
+  "EnableVisionAnalysis": true,
+  "EnableAdvancedAnalytics": true,
+  "LogAIRequests": true
+}
+
+Format as valid JSON with proper indentation
+```
+
+---
+
+## Step 3.3: Create Prompt Templates
+
+### Copilot Prompt for PromptTemplates Class:
+```
+In FinancialAnalysisAssistant.Services/AI/, create PromptTemplates.cs:
+
+Create a static class with methods that generate specialized prompts for financial analysis:
+
+1. GetFinancialSummaryPrompt(List<FinancialData> data)
+   Returns a prompt that:
+   - Introduces the AI as a financial analyst
+   - Provides the financial data in a structured format
+   - Asks for: total revenue, total expenses, net income, key observations
+   - Requests output in clear sections
+   - Example format:
+     "You are an expert financial analyst. Analyze the following financial data and provide:
+      1. Summary of total revenue and expenses
+      2. Net income calculation
+      3. Key observations about the financial health
+      4. Any concerning trends or anomalies
+      
+      Financial Data:
+      {formatted data here}
+      
+      Provide your analysis in a clear, professional format."
+
+2. GetTrendAnalysisPrompt(List<FinancialData> data, string period)
+   Returns a prompt for identifying trends over time:
+   - Group data by periods
+   - Ask for period-over-period comparisons
+   - Request trend identification (growing, declining, stable)
+   - Ask for percentage changes
+   - Request visualization recommendations
+
+3. GetAnomalyDetectionPrompt(List<FinancialData> data)
+   Returns a prompt for finding unusual patterns:
+   - Provide statistical context (mean, median if available)
+   - Ask to identify outliers
+   - Request explanation of why values are anomalous
+   - Ask for severity rating (low, medium, high)
+   - Request recommendations for investigation
+
+4. GetRatioAnalysisPrompt(Dictionary<string, decimal> ratios)
+   Returns a prompt for analyzing financial ratios:
+   - Provide calculated ratios
+   - Ask for interpretation of each ratio
+   - Request comparison to industry standards
+   - Ask for overall financial health assessment
+   - Request specific recommendations
+
+5. GetComparisonPrompt(List<FinancialData> currentPeriod, List<FinancialData> previousPeriod)
+   Returns a prompt for comparing two time periods:
+   - Provide both datasets clearly labeled
+   - Ask for period-over-period changes
+   - Request variance analysis
+   - Ask for significant changes explanation
+   - Request strategic insights
+
+6. GetCashFlowAnalysisPrompt(List<FinancialData> data)
+   Returns a prompt for cash flow analysis:
+   - Focus on cash-related accounts
+   - Ask for operating, investing, financing activities
+   - Request liquidity assessment
+   - Ask for working capital analysis
+
+7. GetForecastingPrompt(List<FinancialData> historicalData, int periodsAhead)
+   Returns a prompt for forecasting:
+   - Provide historical data with clear time series
+   - Ask for trend-based projections
+   - Request confidence levels
+   - Ask for assumptions made
+   - Request risk factors
+
+8. GetCustomAnalysisPrompt(string userQuestion, List<FinancialData> data)
+   Returns a prompt that combines user's custom question with data:
+   - Start with user's specific question
+   - Provide relevant financial data
+   - Ask for detailed, specific answer
+   - Request supporting evidence from the data
+
+Helper method:
+9. FormatFinancialDataForPrompt(List<FinancialData> data)
+   - Converts FinancialData list to readable text format
+   - Groups by category or period
+   - Formats amounts with currency
+   - Creates clean, tabular representation
+   - Returns formatted string
+
+Add:
+- XML documentation for each method
+- Private helper methods for data formatting
+- Constants for common prompt sections
+- Ensure prompts are clear, specific, and request structured output
+```
+
+---
+
+## Step 3.4: Create Llama Service Interface
+
+### Copilot Prompt for ILlamaService:
+```
+In FinancialAnalysisAssistant.Services/AI/, create ILlamaService.cs:
+
+Create an interface for AI service operations with these methods:
+
+1. Core AI Operations:
+   - Task<string> GenerateResponseAsync(string prompt, CancellationToken cancellationToken = default)
+   - Task<string> GenerateResponseAsync(string prompt, string model, CancellationToken cancellationToken = default)
+   - Task<bool> IsServiceAvailableAsync()
+   - Task<bool> IsModelAvailableAsync(string modelName)
+   - Task<List<string>> GetAvailableModelsAsync()
+
+2. Financial Analysis Operations:
+   - Task<string> GenerateSummaryAsync(List<FinancialData> data, CancellationToken cancellationToken = default)
+   - Task<string> AnalyzeTrendsAsync(List<FinancialData> data, string period, CancellationToken cancellationToken = default)
+   - Task<string> DetectAnomaliesAsync(List<FinancialData> data, CancellationToken cancellationToken = default)
+   - Task<string> AnalyzeRatiosAsync(Dictionary<string, decimal> ratios, CancellationToken cancellationToken = default)
+   - Task<string> ComparePeriodsAsync(List<FinancialData> current, List<FinancialData> previous, CancellationToken cancellationToken = default)
+   - Task<string> AnalyzeCashFlowAsync(List<FinancialData> data, CancellationToken cancellationToken = default)
+   - Task<string> GenerateForecastAsync(List<FinancialData> historicalData, int periodsAhead, CancellationToken cancellationToken = default)
+   - Task<string> CustomAnalysisAsync(string question, List<FinancialData> data, CancellationToken cancellationToken = default)
+
+3. Vision/Document Analysis Operations:
+   - Task<string> AnalyzeDocumentImageAsync(byte[] imageData, string question, CancellationToken cancellationToken = default)
+   - Task<string> ExtractDataFromImageAsync(byte[] imageData, CancellationToken cancellationToken = default)
+
+4. Streaming Operations (Optional for future):
+   - IAsyncEnumerable<string> StreamResponseAsync(string prompt, CancellationToken cancellationToken = default)
+
+Add:
+- XML documentation for all methods
+- Using statements for FinancialAnalysisAssistant.Core.Entities
+- Parameter descriptions in documentation
+```
+
+---
+
+## Step 3.5: Implement Llama Service
+
+### Copilot Prompt for LlamaService Implementation (Part 1 - Setup):
+```
+In FinancialAnalysisAssistant.Services/AI/, create LlamaService.cs implementing ILlamaService:
+
+Part 1 - Class structure and setup:
+
+1. Private fields:
+   - readonly OllamaApiClient _ollamaClient
+   - readonly AIModelConfiguration _config
+   - readonly ILogger<LlamaService> _logger
+   - readonly IAsyncPolicy<string> _retryPolicy
+
+2. Constructor:
+   public LlamaService(
+       IOptions<AIModelConfiguration> config,
+       ILogger<LlamaService> logger)
+   
+   Initialize:
+   - Extract config from IOptions
+   - Create OllamaApiClient with base URL from config
+   - Initialize logger
+   - Create retry policy using Polly:
+     * Use AsyncRetryPolicy
+     * Retry on HttpRequestException and TimeoutException
+     * Max retries from config
+     * Exponential backoff: 2^retry * RetryDelaySeconds
+     * Log each retry attempt
+   
+3. Add using statements:
+   - OllamaSharp
+   - OllamaSharp.Models
+   - Polly
+   - Microsoft.Extensions.Options
+   - Microsoft.Extensions.Logging
+   - FinancialAnalysisAssistant.Core.Entities
+   - System.Text
+   - System.Text.Json
+
+Example retry policy:
+_retryPolicy = Policy<string>
+    .Handle<HttpRequestException>()
+    .Or<TimeoutException>()
+    .WaitAndRetryAsync(
+        _config.MaxRetries,
+        retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt) * _config.RetryDelaySeconds),
+        onRetry: (outcome, timespan, retryCount, context) =>
+        {
+            _logger.LogWarning($"Retry {retryCount} after {timespan.TotalSeconds}s delay due to: {outcome.Exception?.Message}");
+        });
+```
+
+### Copilot Prompt for LlamaService Implementation (Part 2 - Core Methods):
+```
+In LlamaService.cs, implement core AI operations:
+
+1. IsServiceAvailableAsync:
+   - Try to connect to Ollama API
+   - Use _ollamaClient to list models
+   - Return true if successful, false if exception
+   - Catch and log any exceptions
+   - Use try-catch block
+
+2. IsModelAvailableAsync:
+   - Call _ollamaClient.ListLocalModelsAsync()
+   - Check if modelName exists in the list
+   - Return bool result
+   - Handle exceptions, return false on error
+
+3. GetAvailableModelsAsync:
+   - Call _ollamaClient.ListLocalModelsAsync()
+   - Extract model names from response
+   - Return List<string> of model names
+   - Return empty list on error
+
+4. GenerateResponseAsync(string prompt, CancellationToken):
+   - Use default model from config
+   - Call the overload with model parameter
+   
+5. GenerateResponseAsync(string prompt, string model, CancellationToken):
+   - Create request object with:
+     * Model name
+     * Prompt text
+     * Temperature from config
+     * TopP from config
+     * MaxTokens from config
+   
+   - Wrap in retry policy:
+     await _retryPolicy.ExecuteAsync(async () =>
+     {
+         // Make API call here
+     });
+   
+   - Use _ollamaClient.GenerateAsync or SendAsync with request
+   - Extract response text
+   - Log request/response if enabled in config
+   - Handle timeout with CancellationTokenSource
+   - Return response string
+   
+   Error handling:
+   - Try-catch block
+   - Log errors with _logger
+   - Throw custom exception with user-friendly message
+   - Include original exception as inner exception
+
+Example implementation structure:
+public async Task<string> GenerateResponseAsync(string prompt, string model, CancellationToken cancellationToken)
+{
+    try
+    {
+        _logger.LogInformation($"Generating AI response using model: {model}");
+        
+        var response = await _retryPolicy.ExecuteAsync(async () =>
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(_config.Timeout);
+            
+            var request = new GenerateRequest
+            {
+                Model = model,
+                Prompt = prompt,
+                Options = new RequestOptions
+                {
+                    Temperature = _config.Temperature,
+                    TopP = _config.TopP,
+                    NumPredict = _config.MaxTokens
+                }
+            };
+            
+            var result = await _ollamaClient.GenerateAsync(request, cts.Token);
+            return result.Response;
+        });
+        
+        _logger.LogInformation($"AI response generated successfully. Length: {response.Length} characters");
+        return response;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error generating AI response");
+        throw new InvalidOperationException("Failed to generate AI response. Please check if Ollama is running.", ex);
+    }
+}
+```
+
+### Copilot Prompt for LlamaService Implementation (Part 3 - Financial Analysis Methods):
+```
+In LlamaService.cs, implement financial analysis methods:
+
+1. GenerateSummaryAsync:
+   - Get prompt from PromptTemplates.GetFinancialSummaryPrompt(data)
+   - Call GenerateResponseAsync with prompt
+   - Use default text model
+   - Return response
+
+2. AnalyzeTrendsAsync:
+   - Get prompt from PromptTemplates.GetTrendAnalysisPrompt(data, period)
+   - Call GenerateResponseAsync
+   - Return response
+
+3. DetectAnomaliesAsync:
+   - Get prompt from PromptTemplates.GetAnomalyDetectionPrompt(data)
+   - Call GenerateResponseAsync
+   - Return response
+
+4. AnalyzeRatiosAsync:
+   - Get prompt from PromptTemplates.GetRatioAnalysisPrompt(ratios)
+   - Call GenerateResponseAsync
+   - Return response
+
+5. ComparePeriodsAsync:
+   - Get prompt from PromptTemplates.GetComparisonPrompt(current, previous)
+   - Call GenerateResponseAsync
+   - Return response
+
+6. AnalyzeCashFlowAsync:
+   - Get prompt from PromptTemplates.GetCashFlowAnalysisPrompt(data)
+   - Call GenerateResponseAsync
+   - Return response
+
+7. GenerateForecastAsync:
+   - Get prompt from PromptTemplates.GetForecastingPrompt(historicalData, periodsAhead)
+   - Call GenerateResponseAsync
+   - Return response
+
+8. CustomAnalysisAsync:
+   - Get prompt from PromptTemplates.GetCustomAnalysisPrompt(question, data)
+   - Call GenerateResponseAsync
+   - Return response
+
+All methods should:
+- Validate input data (not null, not empty)
+- Log the operation start
+- Handle exceptions gracefully
+- Return meaningful error messages if AI fails
+```
+
+### Copilot Prompt for LlamaService Implementation (Part 4 - Vision Methods):
+```
+In LlamaService.cs, implement vision/document analysis methods:
+
+1. AnalyzeDocumentImageAsync:
+   - Convert byte[] to base64 string
+   - Create vision request with image data
+   - Include question/prompt about what to extract
+   - Use vision model from config
+   - Call Ollama API with vision capabilities
+   - Return extracted information
+
+Implementation approach:
+public async Task<string> AnalyzeDocumentImageAsync(byte[] imageData, string question, CancellationToken cancellationToken)
+{
+    try
+    {
+        _logger.LogInformation("Analyzing document image with vision model");
+        
+        // Convert image to base64
+        var base64Image = Convert.ToBase64String(imageData);
+        
+        // Create prompt combining question and image
+        var prompt = $"{question}\n\n[Image data provided]";
+        
+        // Note: Vision model implementation depends on OllamaSharp API
+        // May need to use specific vision endpoints
+        
+        var response = await GenerateResponseAsync(prompt, _config.VisionModel, cancellationToken);
+        
+        _logger.LogInformation("Document image analysis completed");
+        return response;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error analyzing document image");
+        throw new InvalidOperationException("Failed to analyze document image", ex);
+    }
+}
+
+2. ExtractDataFromImageAsync:
+   - Similar to above but with specific extraction prompt
+   - Request structured data output
+   - Parse response to extract financial data
+   - Return structured information
+```
+
+---
+
+## Step 3.6: Register Services in Dependency Injection
+
+### Copilot Prompt for DI Registration:
+```
+In FinancialAnalysisAssistant.Web/Program.cs, add AI service registrations:
+
+After repository registrations, add:
+
+// Configure AI settings from appsettings.json
+builder.Services.Configure<AIModelConfiguration>(
+    builder.Configuration.GetSection("AISettings"));
+
+// Register AI service
+builder.Services.AddScoped<ILlamaService, LlamaService>();
+
+// Register HttpClient for Ollama (if needed for manual HTTP calls)
+builder.Services.AddHttpClient("Ollama", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["AISettings:OllamaBaseUrl"] ?? "http://localhost:11434");
+    client.Timeout = TimeSpan.FromSeconds(120);
+});
+
+Add using statements:
+using FinancialAnalysisAssistant.Services.AI;
+
+Explanation:
+- Configure<T> binds configuration section to strongly-typed class
+- AddScoped gives each request its own AI service instance
+- HttpClient registration provides configured client for API calls
+```
+
+---
+
+## Step 3.7: Create AI Service Health Check
+
+### Copilot Prompt for AIHealthCheck:
+```
+In FinancialAnalysisAssistant.Services/AI/, create AIHealthCheck.cs:
+
+Create a health check class for monitoring AI service status:
+
+Implement IHealthCheck interface from Microsoft.Extensions.Diagnostics.HealthChecks
+
+Class structure:
+public class AIHealthCheck : IHealthCheck
+{
+    private readonly ILlamaService _llamaService;
+    private readonly ILogger<AIHealthCheck> _logger;
+    
+    public AIHealthCheck(ILlamaService llamaService, ILogger<AIHealthCheck> logger)
+    {
+        _llamaService = llamaService;
+        _logger = logger;
+    }
+    
+    public async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Check if Ollama service is available
+            var isAvailable = await _llamaService.IsServiceAvailableAsync();
+            
+            if (!isAvailable)
+            {
+                return HealthCheckResult.Unhealthy("Ollama service is not available");
+            }
+            
+            // Get available models
+            var models = await _llamaService.GetAvailableModelsAsync();
+            
+            var data = new Dictionary<string, object>
+            {
+                { "OllamaStatus", "Running" },
+                { "AvailableModels", models.Count },
+                { "Models", string.Join(", ", models) }
+            };
+            
+            return HealthCheckResult.Healthy("AI service is healthy", data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AI health check failed");
+            return HealthCheckResult.Unhealthy("AI service check failed", ex);
+        }
+    }
+}
+
+Then in Program.cs, register health check:
+
+builder.Services.AddHealthChecks()
+    .AddCheck<AIHealthCheck>("ai_service");
+
+// Add health check endpoint
+app.MapHealthChecks("/health");
+
+Install package if needed:
+dotnet add package Microsoft.Extensions.Diagnostics.HealthChecks
+```
+
+---
+
+## Step 3.8: Create AI Response Parser (Utility)
+
+### Copilot Prompt for AIResponseParser:
+```
+In FinancialAnalysisAssistant.Services/AI/, create AIResponseParser.cs:
+
+Create a utility class for parsing and formatting AI responses:
+
+public static class AIResponseParser
+{
+    /// <summary>
+    /// Extracts structured sections from AI response
+    /// </summary>
+    public static Dictionary<string, string> ParseSections(string response)
+    {
+        // Look for numbered sections or headers
+        // Return dictionary with section names as keys
+    }
+    
+    /// <summary>
+    /// Extracts key findings as list
+    /// </summary>
+    public static List<string> ExtractKeyFindings(string response)
+    {
+        // Look for bullet points or numbered lists
+        // Return as List<string>
+    }
+    
+    /// <summary>
+    /// Extracts recommendations from response
+    /// </summary>
+    public static List<string> ExtractRecommendations(string response)
+    {
+        // Look for recommendation section
+        // Extract action items
+    }
+    
+    /// <summary>
+    /// Cleans and formats response for display
+    /// </summary>
+    public static string FormatForDisplay(string response)
+    {
+        // Remove extra whitespace
+        // Format markdown if present
+        // Clean up formatting
+    }
+    
+    /// <summary>
+    /// Extracts numerical data from response
+    /// </summary>
+    public static Dictionary<string, decimal> ExtractNumericData(string response)
+    {
+        // Use regex to find amounts and labels
+        // Parse decimal values
+        // Return as dictionary
+    }
+}
+
+Implementation should:
+- Use regex patterns for parsing
+- Handle various response formats
+- Be robust to unexpected formats
+- Return empty collections if parsing fails
+- Log parsing issues
+```
+
+---
+
+## Step 3.9: Testing the AI Service
+
+### Copilot Prompt for Creating Test Page:
+```
+Create a simple test page to verify AI service is working:
+
+In FinancialAnalysisAssistant.Web/Pages/, create AITest.razor:
+
+@page "/aitest"
+@inject ILlamaService LlamaService
+@inject ILogger<AITest> Logger
+
+<h3>AI Service Test</h3>
+
+<MudCard>
+    <MudCardContent>
+        <MudTextField @bind-Value="testPrompt" Label="Test Prompt" Lines="3" />
+        <MudButton OnClick="TestAI" Color="Color.Primary" Variant="Variant.Filled">
+            Test AI
+        </MudButton>
+        
+        @if (isLoading)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        
+        @if (!string.IsNullOrEmpty(response))
+        {
+            <MudText Typo="Typo.h6">Response:</MudText>
+            <MudText>@response</MudText>
+        }
+        
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <MudAlert Severity="Severity.Error">@error</MudAlert>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private string testPrompt = "Explain the importance of cash flow analysis in 2 sentences.";
+    private string response = "";
+    private string error = "";
+    private bool isLoading = false;
+    
+    private async Task TestAI()
+    {
+        isLoading = true;
+        error = "";
+        response = "";
+        
+        try
+        {
+            response = await LlamaService.GenerateResponseAsync(testPrompt);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            Logger.LogError(ex, "AI test failed");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
+
+Navigate to /aitest to verify AI is working
+```
+
+---
+
+## Step 3.10: Verification Checklist
+
+Before moving to Phase 4, verify:
+
+- [ ] Ollama installed and running (http://localhost:11434 accessible)
+- [ ] Required models downloaded (llama3.2, llama3.2-vision, qwen2.5:8b)
+- [ ] AIModelConfiguration class created
+- [ ] AI settings added to appsettings.json
+- [ ] PromptTemplates class with all 9 methods created
+- [ ] ILlamaService interface created with all methods
+- [ ] LlamaService implementation complete
+- [ ] Retry policy with Polly implemented
+- [ ] Services registered in DI container
+- [ ] Health check created and registered
+- [ ] AIResponseParser utility created
+- [ ] Test page created and working
+- [ ] Successful test API call to Ollama
+
+**Test Command:**
+```bash
+# From terminal, test Ollama directly:
+curl http://localhost:11434/api/generate -d '{
+  "model": "llama3.2",
+  "prompt": "Why is the sky blue?",
+  "stream": false
+}'
+```
+
+---
+
+## Next Phase Preview
+
+**Phase 4** will cover:
+- Document processing services
+- Excel/CSV/PDF file parsing
+- Data extraction and validation
+- Integration with AI for document analysis
+
+---
+
+## Troubleshooting
+
+### Common AI Service Issues:
+
+**Issue:** "Ollama is not running"  
+**Solution:**
+```bash
+# Check if Ollama is running
+curl http://localhost:11434
+
+# Start Ollama (varies by OS)
+# Windows: It should auto-start
+# Mac/Linux: ollama serve
+```
+
+**Issue:** "Model not found"  
+**Solution:**
+```bash
+# List available models
+ollama list
+
+# Pull missing model
+ollama pull llama3.2
+```
+
+**Issue:** "Request timeout"  
+**Solution:** Increase TimeoutSeconds in appsettings.json to 180 or 240
+
+**Issue:** "Out of memory" when running models  
+**Solution:** 
+- Use smaller models or quantized versions
+- Close other applications
+- Increase system RAM if possible
+- Use qwen2.5:8b which is more memory efficient
+
+**Issue:** OllamaSharp connection errors  
+**Solution:** Verify OllamaBaseUrl in config matches where Ollama is running
+
+---
+
+## Files Created This Phase
+
+```
+✓ FinancialAnalysisAssistant.Services/AI/AIModelConfiguration.cs
+✓ FinancialAnalysisAssistant.Services/AI/PromptTemplates.cs
+✓ FinancialAnalysisAssistant.Services/AI/ILlamaService.cs
+✓ FinancialAnalysisAssistant.Services/AI/LlamaService.cs
+✓ FinancialAnalysisAssistant.Services/AI/AIHealthCheck.cs
+✓ FinancialAnalysisAssistant.Services/AI/AIResponseParser.cs
+✓ FinancialAnalysisAssistant.Web/Pages/AITest.razor
+```
+
+**Total Files:** 7  
+**Lines of Code:** ~1500-2000 (estimated)
+
+---
+
+## Performance Tips
+
+1. **Model Selection:**
+   - Use llama3.2 for general analysis (faster)
+   - Use qwen2.5:8b for complex reasoning
+   - Use vision model only when processing images
+
+2. **Prompt Optimization:**
+   - Keep prompts concise but specific
+   - Include clear formatting instructions
+   - Request structured output for easier parsing
+
+3. **Caching:**
+   - Consider caching frequent analyses
+   - Store AI responses in database for reuse
+   - Implement response deduplication
+
+4. **Parallel Processing:**
+   - Process multiple documents concurrently
+   - Use Task.WhenAll for batch operations
+   - Respect API rate limits
+
+---
+
+## Progress Tracking
+
+**Phase 3 Status:** Ready to implement  
+**Next Phase:** Phase 4 - Document Processing Service  
+**Overall Progress:** 37.5% (3 of 8 phases)

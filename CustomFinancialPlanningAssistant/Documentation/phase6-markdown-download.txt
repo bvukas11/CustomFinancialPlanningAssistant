@@ -1,0 +1,1134 @@
+# Financial Analysis Assistant - PHASE 6: Blazor UI & Visualization
+
+## Overview
+This phase implements the user interface using Blazor Server with MudBlazor components, including dashboard, document management, analysis views, and data visualization.
+
+**Estimated Time:** 4-5 hours  
+**Prerequisites:** Phase 1-5 completed, MudBlazor installed  
+**Dependencies:** MudBlazor, Chart.js or similar charting library
+
+---
+
+## Step 6.1: Configure MudBlazor
+
+### Copilot Prompt for MudBlazor Setup:
+```
+Ensure MudBlazor is properly configured in the application:
+
+1. Verify package is installed in Web project:
+   - MudBlazor version 7.8.0 or later
+
+2. In Program.cs, ensure MudBlazor services are registered:
+   builder.Services.AddMudServices();
+
+3. In App.razor, ensure MudBlazor components are included:
+   Add MudThemeProvider, MudPopoverProvider, MudDialogProvider, MudSnackbarProvider
+
+4. In _Imports.razor, add:
+   @using MudBlazor
+
+5. In wwwroot/index.html or _Layout.cshtml, add MudBlazor CSS and JS:
+   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
+   <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+   <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+
+6. Create a custom theme configuration if desired
+```
+
+### Copilot Prompt for App.razor Update:
+```
+In FinancialAnalysisAssistant.Web/Components/App.razor, update to include MudBlazor providers:
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="FinancialAnalysisAssistant.Web.styles.css" />
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+<body>
+    <MudThemeProvider />
+    <MudPopoverProvider />
+    <MudDialogProvider />
+    <MudSnackbarProvider />
+    
+    <Routes @rendermode="InteractiveServer" />
+    
+    <script src="_framework/blazor.web.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+</body>
+</html>
+```
+
+---
+
+## Step 6.2: Create Main Layout with Navigation
+
+### Copilot Prompt for MainLayout:
+```
+In FinancialAnalysisAssistant.Web/Components/Layout/MainLayout.razor, create a responsive layout:
+
+@inherits LayoutComponentBase
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h5" Class="ml-3">Financial Analysis Assistant</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
+        <MudIconButton Icon="@Icons.Material.Filled.Settings" Color="Color.Inherit" />
+    </MudAppBar>
+    
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">Menu</MudText>
+        </MudDrawerHeader>
+        <NavMenu />
+    </MudDrawer>
+    
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+}
+```
+
+### Copilot Prompt for NavMenu:
+```
+In FinancialAnalysisAssistant.Web/Components/Layout/NavMenu.razor, create navigation menu:
+
+<MudNavMenu>
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
+        Dashboard
+    </MudNavLink>
+    <MudNavLink Href="/documents" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.CloudUpload">
+        Documents
+    </MudNavLink>
+    <MudNavLink Href="/upload" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Upload">
+        Upload Document
+    </MudNavLink>
+    <MudNavLink Href="/analysis" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Analytics">
+        Analysis
+    </MudNavLink>
+    <MudNavLink Href="/reports" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Assessment">
+        Reports
+    </MudNavLink>
+    <MudNavLink Href="/trends" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.TrendingUp">
+        Trends
+    </MudNavLink>
+    <MudNavLink Href="/ai-insights" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Psychology">
+        AI Insights
+    </MudNavLink>
+    <MudDivider Class="my-2" />
+    <MudNavLink Href="/settings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Settings">
+        Settings
+    </MudNavLink>
+</MudNavMenu>
+
+@code {
+}
+```
+
+---
+
+## Step 6.3: Create Dashboard Page
+
+### Copilot Prompt for Dashboard:
+```
+In FinancialAnalysisAssistant.Web/Components/Pages/Dashboard.razor, create the main dashboard:
+
+@page "/"
+@inject IFinancialService FinancialService
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
+
+<PageTitle>Dashboard - Financial Analysis Assistant</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Financial Dashboard</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Overview of your financial data and recent activities</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else if (_summary != null)
+{
+    <!-- Summary Cards -->
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total Revenue</MudText>
+                    <MudText Typo="Typo.h4" Color="Color.Success">@_summary.TotalRevenue.ToString("C")</MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" Size="Size.Large" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total Expenses</MudText>
+                    <MudText Typo="Typo.h4" Color="Color.Error">@_summary.TotalExpenses.ToString("C")</MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.TrendingDown" Color="Color.Error" Size="Size.Large" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Net Income</MudText>
+                    <MudText Typo="Typo.h4" Color="@(_summary.NetIncome > 0 ? Color.Success : Color.Error)">
+                        @_summary.NetIncome.ToString("C")
+                    </MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Size="Size.Large" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Profit Margin</MudText>
+                    <MudText Typo="Typo.h4">
+                        @((_summary.TotalRevenue > 0 ? (_summary.NetIncome / _summary.TotalRevenue * 100) : 0).ToString("F2"))%
+                    </MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.BarChart" Size="Size.Large" />
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+    
+    <!-- Category Breakdown Chart -->
+    <MudGrid Class="mt-4">
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Category Breakdown</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_summary.CategoryBreakdown.Any())
+                    {
+                        <MudSimpleTable Striped="true">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var category in _summary.CategoryBreakdown)
+                                {
+                                    var percentage = _totalAmount > 0 ? (category.Value / _totalAmount * 100) : 0;
+                                    <tr>
+                                        <td>@category.Key</td>
+                                        <td>@category.Value.ToString("C")</td>
+                                        <td>
+                                            <MudProgressLinear Color="Color.Primary" Value="@percentage" Size="Size.Medium">
+                                                <MudText Typo="Typo.body2">@percentage.ToString("F1")%</MudText>
+                                            </MudProgressLinear>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Key Highlights</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudList>
+                        @foreach (var highlight in _summary.KeyHighlights)
+                        {
+                            <MudListItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success">
+                                @highlight
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+    
+    <!-- Recent Documents -->
+    <MudCard Elevation="2" Class="mt-4">
+        <MudCardHeader>
+            <MudText Typo="Typo.h6">Recent Documents</MudText>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudTable Items="_recentDocuments" Hover="true" Breakpoint="Breakpoint.Sm">
+                <HeaderContent>
+                    <MudTh>File Name</MudTh>
+                    <MudTh>Upload Date</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="File Name">@context.FileName</MudTd>
+                    <MudTd DataLabel="Upload Date">@context.UploadDate.ToString("g")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip Color="GetStatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" 
+                                       OnClick="@(() => ViewDocument(context.Id))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Analytics" Size="Size.Small" 
+                                       OnClick="@(() => AnalyzeDocument(context.Id))" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudCardContent>
+    </MudCard>
+}
+
+@code {
+    private bool _isLoading = true;
+    private FinancialSummaryDto? _summary;
+    private List<FinancialDocument> _recentDocuments = new();
+    private decimal _totalAmount;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+    
+    private async Task LoadDashboardData()
+    {
+        try
+        {
+            _isLoading = true;
+            
+            // Get recent documents
+            _recentDocuments = (await DocumentRepo.GetRecentDocumentsAsync(5)).ToList();
+            
+            // If we have documents, get summary for the most recent one
+            if (_recentDocuments.Any())
+            {
+                _summary = await FinancialService.GetFinancialSummaryAsync(_recentDocuments.First().Id);
+                _totalAmount = _summary.CategoryBreakdown.Sum(c => Math.Abs(c.Value));
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading dashboard: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+    
+    private Color GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Analyzed" => Color.Success,
+            "Processing" => Color.Info,
+            "Error" => Color.Error,
+            _ => Color.Default
+        };
+    }
+    
+    private void ViewDocument(int documentId)
+    {
+        // Navigation to document details
+    }
+    
+    private void AnalyzeDocument(int documentId)
+    {
+        // Navigation to analysis page
+    }
+}
+```
+
+---
+
+## Step 6.4: Create Document Upload Page
+
+### Copilot Prompt for Upload Page:
+```
+In FinancialAnalysisAssistant.Web/Components/Pages/UploadDocument.razor, create file upload interface:
+
+@page "/upload"
+@inject IDocumentProcessor DocumentProcessor
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Upload Document</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Upload Financial Document</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Upload Excel, CSV, or PDF files for analysis</MudText>
+
+<MudCard Elevation="2">
+    <MudCardContent>
+        <MudFileUpload T="IBrowserFile" Accept=".xlsx,.xls,.csv,.pdf" 
+                       FilesChanged="HandleFileSelected" MaximumFileCount="1">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           StartIcon="@Icons.Material.Filled.CloudUpload"
+                           Disabled="_isProcessing">
+                    Select File
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
+        
+        @if (_selectedFile != null)
+        {
+            <MudChip Color="Color.Info" Class="mt-2">
+                @_selectedFile.Name (@FormatFileSize(_selectedFile.Size))
+            </MudChip>
+        }
+        
+        @if (_isProcessing)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mt-4" />
+            <MudText Typo="Typo.body2" Align="Align.Center" Class="mt-2">Processing file...</MudText>
+        }
+        
+        @if (_uploadResult != null)
+        {
+            <MudAlert Severity="@(_uploadResult.Success ? Severity.Success : Severity.Error)" Class="mt-4">
+                @if (_uploadResult.Success)
+                {
+                    <MudText>
+                        File uploaded successfully! Imported @_uploadResult.RecordsImported records in @_uploadResult.ProcessingTime ms.
+                    </MudText>
+                }
+                else
+                {
+                    <MudText>Upload failed:</MudText>
+                    @foreach (var error in _uploadResult.ErrorMessages)
+                    {
+                        <MudText>• @error</MudText>
+                    }
+                }
+                
+                @if (_uploadResult.Warnings.Any())
+                {
+                    <MudText Class="mt-2">Warnings:</MudText>
+                    @foreach (var warning in _uploadResult.Warnings)
+                    {
+                        <MudText>• @warning</MudText>
+                    }
+                }
+            </MudAlert>
+            
+            @if (_uploadResult.Success)
+            {
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           Class="mt-2"
+                           OnClick="ViewDocument">
+                    View Document
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Primary" 
+                           Class="mt-2 ml-2"
+                           OnClick="UploadAnother">
+                    Upload Another
+                </MudButton>
+            }
+        }
+    </MudCardContent>
+</MudCard>
+
+<!-- Supported File Types -->
+<MudCard Elevation="1" Class="mt-4">
+    <MudCardHeader>
+        <MudText Typo="Typo.h6">Supported File Types</MudText>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="0">
+                    <MudIcon Icon="@Icons.Material.Filled.TableChart" Size="Size.Large" Color="Color.Success" />
+                    <MudText Typo="Typo.h6">Excel Files</MudText>
+                    <MudText Typo="Typo.body2">.xlsx, .xls</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">
+                        Structured data with columns for Account Name, Amount, Period, Category, etc.
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="0">
+                    <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Large" Color="Color.Info" />
+                    <MudText Typo="Typo.h6">CSV Files</MudText>
+                    <MudText Typo="Typo.body2">.csv</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">
+                        Comma-separated values with proper headers.
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="0">
+                    <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Size="Size.Large" Color="Color.Error" />
+                    <MudText Typo="Typo.h6">PDF Files</MudText>
+                    <MudText Typo="Typo.body2">.pdf</MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">
+                        Financial statements (text-based, not scanned images).
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private IBrowserFile? _selectedFile;
+    private bool _isProcessing;
+    private UploadResultDto? _uploadResult;
+    
+    private async Task HandleFileSelected(IBrowserFile file)
+    {
+        _selectedFile = file;
+        _uploadResult = null;
+        
+        if (file != null)
+        {
+            await ProcessFile(file);
+        }
+    }
+    
+    private async Task ProcessFile(IBrowserFile file)
+    {
+        try
+        {
+            _isProcessing = true;
+            
+            // Get file extension
+            var extension = Path.GetExtension(file.Name).ToLower();
+            var fileType = extension switch
+            {
+                ".xlsx" or ".xls" => "Excel",
+                ".csv" => "CSV",
+                ".pdf" => "PDF",
+                _ => "Unknown"
+            };
+            
+            // Read file stream
+            var maxFileSize = 50 * 1024 * 1024; // 50MB
+            using var stream = file.OpenReadStream(maxFileSize);
+            
+            // Process document
+            _uploadResult = await DocumentProcessor.ProcessDocumentAsync(stream, file.Name, fileType);
+            
+            if (_uploadResult.Success)
+            {
+                Snackbar.Add("File uploaded and processed successfully!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("File upload failed. Please check the errors.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            _uploadResult = new UploadResultDto
+            {
+                Success = false,
+                FileName = file.Name,
+                ErrorMessages = new List<string> { ex.Message }
+            };
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+    
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        
+        return $"{len:0.##} {sizes[order]}";
+    }
+    
+    private void ViewDocument()
+    {
+        if (_uploadResult?.DocumentId.HasValue == true)
+        {
+            Navigation.NavigateTo($"/documents/{_uploadResult.DocumentId.Value}");
+        }
+    }
+    
+    private void UploadAnother()
+    {
+        _selectedFile = null;
+        _uploadResult = null;
+    }
+}
+```
+
+---
+
+## Step 6.5: Create Document List Page
+
+### Copilot Prompt for Documents Page:
+```
+In FinancialAnalysisAssistant.Web/Components/Pages/Documents.razor, create document management page:
+
+@page "/documents"
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Documents</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Financial Documents</MudText>
+
+<MudCard Elevation="2">
+    <MudCardHeader>
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="_searchTerm" 
+                              Label="Search" 
+                              Variant="Variant.Outlined" 
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              OnKeyUp="HandleSearch" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudSelect @bind-Value="_statusFilter" Label="Status" Variant="Variant.Outlined" OnValueChanged="FilterDocuments">
+                    <MudSelectItem Value="@("All")">All</MudSelectItem>
+                    <MudSelectItem Value="@("Uploaded")">Uploaded</MudSelectItem>
+                    <MudSelectItem Value="@("Processing")">Processing</MudSelectItem>
+                    <MudSelectItem Value="@("Analyzed")">Analyzed</MudSelectItem>
+                    <MudSelectItem Value="@("Error")">Error</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="NavigateToUpload">
+                    Upload New
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardHeader>
+    <MudCardContent>
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else
+        {
+            <MudTable Items="_filteredDocuments" 
+                      Hover="true" 
+                      Breakpoint="Breakpoint.Sm"
+                      Loading="_isLoading"
+                      RowsPerPage="10">
+                <HeaderContent>
+                    <MudTh>File Name</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Upload Date</MudTh>
+                    <MudTh>Size</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="File Name">
+                        <MudIcon Icon="@GetFileIcon(context.FileType)" Class="mr-2" />
+                        @context.FileName
+                    </MudTd>
+                    <MudTd DataLabel="Type">@context.FileType</MudTd>
+                    <MudTd DataLabel="Upload Date">@context.UploadDate.ToString("g")</MudTd>
+                    <MudTd DataLabel="Size">@FormatFileSize(context.FileSize)</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip Color="GetStatusColor(context.Status)" Size="Size.Small">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
+                                           OnClick="@(() => ViewDocument(context.Id))" 
+                                           Title="View" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Analytics" 
+                                           OnClick="@(() => AnalyzeDocument(context.Id))" 
+                                           Title="Analyze" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteDocument(context.Id))" 
+                                           Title="Delete" />
+                        </MudButtonGroup>
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        }
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private bool _isLoading = true;
+    private List<FinancialDocument> _allDocuments = new();
+    private List<FinancialDocument> _filteredDocuments = new();
+    private string _searchTerm = "";
+    private string _statusFilter = "All";
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocuments();
+    }
+    
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            _isLoading = true;
+            _allDocuments = (await DocumentRepo.GetAllAsync()).ToList();
+            FilterDocuments();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading documents: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+    
+    private void HandleSearch(KeyboardEventArgs e)
+    {
+        FilterDocuments();
+    }
+    
+    private void FilterDocuments()
+    {
+        _filteredDocuments = _allDocuments
+            .Where(d => 
+                (_statusFilter == "All" || d.Status == _statusFilter) &&
+                (string.IsNullOrWhiteSpace(_searchTerm) || 
+                 d.FileName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(d => d.UploadDate)
+            .ToList();
+    }
+    
+    private string GetFileIcon(string fileType)
+    {
+        return fileType switch
+        {
+            "Excel" => Icons.Material.Filled.TableChart,
+            "CSV" => Icons.Material.Filled.Description,
+            "PDF" => Icons.Material.Filled.PictureAsPdf,
+            _ => Icons.Material.Filled.InsertDriveFile
+        };
+    }
+    
+    private Color GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Analyzed" => Color.Success,
+            "Processing" => Color.Info,
+            "Error" => Color.Error,
+            "Uploaded" => Color.Default,
+            _ => Color.Default
+        };
+    }
+    
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        
+        return $"{len:0.##} {sizes[order]}";
+    }
+    
+    private void ViewDocument(int id)
+    {
+        Navigation.NavigateTo($"/documents/{id}");
+    }
+    
+    private void AnalyzeDocument(int id)
+    {
+        Navigation.NavigateTo($"/analysis/{id}");
+    }
+    
+    private async Task DeleteDocument(int id)
+    {
+        var confirm = await // Dialog confirmation logic
+        if (confirm)
+        {
+            await DocumentRepo.DeleteAsync(id);
+            await DocumentRepo.SaveChangesAsync();
+            await LoadDocuments();
+            Snackbar.Add("Document deleted successfully", Severity.Success);
+        }
+    }
+    
+    private void NavigateToUpload()
+    {
+        Navigation.NavigateTo("/upload");
+    }
+}
+```
+
+---
+
+## Step 6.6: Create Analysis Page
+
+### Copilot Prompt for Analysis Page:
+```
+In FinancialAnalysisAssistant.Web/Components/Pages/Analysis.razor, create comprehensive analysis view:
+
+@page "/analysis/{DocumentId:int}"
+@inject IFinancialService FinancialService
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
+
+<PageTitle>Financial Analysis</PageTitle>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else if (_document != null && _summary != null)
+{
+    <MudText Typo="Typo.h4" GutterBottom="true">
+        Analysis: @_document.FileName
+    </MudText>
+    
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+        <!-- Summary Tab -->
+        <MudTabPanel Text="Summary" Icon="@Icons.Material.Filled.Summarize">
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Income Statement Summary</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudSimpleTable Dense="true">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Total Revenue:</strong></td>
+                                        <td class="text-success">@_summary.TotalRevenue.ToString("C")</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Total Expenses:</strong></td>
+                                        <td class="text-danger">@_summary.TotalExpenses.ToString("C")</td>
+                                    </tr>
+                                    <tr class="mud-table-row-highlighted">
+                                        <td><strong>Net Income:</strong></td>
+                                        <td><strong>@_summary.NetIncome.ToString("C")</strong></td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Balance Sheet Summary</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudSimpleTable Dense="true">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Total Assets:</strong></td>
+                                        <td>@_summary.TotalAssets.ToString("C")</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Total Liabilities:</strong></td>
+                                        <td>@_summary.TotalLiabilities.ToString("C")</td>
+                                    </tr>
+                                    <tr class="mud-table-row-highlighted">
+                                        <td><strong>Equity:</strong></td>
+                                        <td><strong>@_summary.Equity.ToString("C")</strong></td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <MudItem xs="12">
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Key Highlights</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList>
+                                @foreach (var highlight in _summary.KeyHighlights)
+                                {
+                                    <MudListItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success">
+                                        @highlight
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+        
+        <!-- Ratios Tab -->
+        <MudTabPanel Text="Financial Ratios" Icon="@Icons.Material.Filled.Calculate">
+            @if (_ratios != null)
+            {
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudCard Elevation="2">
+                            <MudCardHeader>
+                                <MudText Typo="Typo.h6">Profitability Ratios</MudText>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                @foreach (var ratio in _ratios.Where(r => r.Key.Contains("Profit") || r.Key.Contains("Return")))
+                                {
+                                    <MudProgressLinear Color="Color.Primary" Value="@Math.Min(ratio.Value, 100)" Size="Size.Medium" Class="mb-2">
+                                        <MudText Typo="Typo.body2">@FormatRatioName(ratio.Key): @ratio.Value.ToString("F2")%</MudText>
+                                    </MudProgressLinear>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudCard Elevation="2">
+                            <MudCardHeader>
+                                <MudText Typo="Typo.h6">Liquidity & Efficiency Ratios</MudText>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                @foreach (var ratio in _ratios.Where(r => !r.Key.Contains("Profit") && !r.Key.Contains("Return")))
+                                {
+                                    <MudProgressLinear Color="Color.Info" Value="@Math.Min(ratio.Value, 100)" Size="Size.Medium" Class="mb-2">
+                                        <MudText Typo="Typo.body2">@FormatRatioName(ratio.Key): @ratio.Value.ToString("F2")</MudText>
+                                    </MudProgressLinear>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                </MudGrid>
+            }
+            else if (_isLoadingRatios)
+            {
+                <MudProgressCircular Indeterminate="true" />
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadRatios">
+                    Calculate Ratios
+                </MudButton>
+            }
+        </MudTabPanel>
+        
+        <!-- AI Insights Tab -->
+        <MudTabPanel Text="AI Insights" Icon="@Icons.Material.Filled.Psychology">
+            @if (_aiInsights != null)
+            {
+                <MudCard Elevation="2">
+                    <MudCardContent>
+                        <MudMarkdown Value="@_aiInsights.DetailedAnalysis" />
+                        
+                        @if (_aiInsights.Recommendations.Any())
+                        {
+                            <MudText Typo="Typo.h6" Class="mt-4">Recommendations:</MudText>
+                            <MudList>
+                                @foreach (var rec in _aiInsights.Recommendations)
+                                {
+                                    <MudListItem Icon="@Icons.Material.Filled.Lightbulb" IconColor="Color.Warning">
+                                        @rec
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            }
+            else if (_isLoadingAI)
+            {
+                <MudProgressCircular Indeterminate="true" />
+                <MudText Class="mt-2">Generating AI insights...</MudText>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GenerateAIInsights">
+                    Generate AI Analysis
+                </MudButton>
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    [Parameter]
+    public int DocumentId { get; set; }
+    
+    private bool _isLoading = true;
+    private bool _isLoadingRatios;
+    private bool _isLoadingAI;
+    
+    private FinancialDocument? _document;
+    private FinancialSummaryDto? _summary;
+    private Dictionary<string, decimal>? _ratios;
+    private AnalysisResponseDto? _aiInsights;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnalysisData();
+    }
+    
+    private async Task LoadAnalysisData()
+    {
+        try
+        {
+            _isLoading = true;
+            
+            _document = await DocumentRepo.GetByIdAsync(DocumentId);
+            if (_document == null)
+            {
+                Snackbar.Add("Document not found", Severity.Error);
+                return;
+            }
+            
+            _summary = await FinancialService.GetFinancialSummaryAsync(DocumentId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading analysis: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+    
+    private async Task LoadRatios()
+    {
+        try
+        {
+            _isLoadingRatios = true;
+            _ratios = await FinancialService.CalculateFinancialRatiosAsync(DocumentId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error calculating ratios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoadingRatios = false;
+        }
+    }
+    
+    private async Task GenerateAIInsights()
+    {
+        try
+        {
+            _isLoadingAI = true;
+            _aiInsights = await FinancialService.GenerateAIInsightsAsync(DocumentId, AnalysisType.Summary);
+            Snackbar.Add("AI insights generated successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating AI insights: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoadingAI = false;
+        }
+    }
+    
+    private string FormatRatioName(string ratioKey)
+    {
+        // Convert PascalCase to readable format
+        return System.Text.RegularExpressions.Regex.Replace(ratioKey, "([A-Z])", " $1").Trim();
+    }
+}
+```
+
+---
+
+## Step 6.7: Verification Checklist
+
+Before moving to Phase 7, verify:
+
+- [ ] MudBlazor properly configured
+- [ ] Main layout with navigation created
+- [ ] Dashboard page displays summary cards
+- [ ] Document upload page working
+- [ ] Document list page with filtering
+- [ ] Analysis page with tabs
+- [ ] All pages responsive
+- [ ] Navigation between pages working
+- [ ] Error handling with Snackbar
+- [ ] Loading indicators present
+- [ ] No compilation errors
+
+**Manual Test:**
+1. Run application
+2. Navigate through all pages
+3. Upload a test document
+4. View dashboard
+5. Analyze document
+6. Verify UI responsiveness
+
+---
+
+## Next Phase Preview
+
+**Phase 7** will cover:
+- Report generation service
+- PDF export functionality
+- Excel export functionality
+- Report scheduling
+- Custom report templates
+
+---
+
+## Progress Tracking
+
+**Phase 6 Status:** Ready to implement  
+**Next Phase:** Phase 7 - Report Generation  
+**Overall Progress:** 75% (6 of 8 phases)
