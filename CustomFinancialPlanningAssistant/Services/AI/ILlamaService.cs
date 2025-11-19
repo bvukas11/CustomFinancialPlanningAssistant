@@ -1,4 +1,5 @@
 using CustomFinancialPlanningAssistant.Core.Entities;
+using CustomFinancialPlanningAssistant.Core.DTOs;
 
 namespace CustomFinancialPlanningAssistant.Services.AI;
 
@@ -133,4 +134,66 @@ public interface ILlamaService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Extracted data as text</returns>
     Task<string> ExtractDataFromImageAsync(byte[] imageData, CancellationToken cancellationToken = default);
+
+    // ========== PHASE 11: Enhanced AI Insights ==========
+
+    /// <summary>
+    /// Generates comprehensive AI insights with health scoring and risk assessment
+    /// </summary>
+    /// <param name="documentId">Document to analyze</param>
+    /// <param name="analysisType">Type of analysis (HealthCheck, RiskAnalysis, Optimization, Growth)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Comprehensive AI insights</returns>
+    Task<AIInsightDto> GenerateComprehensiveInsightsAsync(int documentId, string analysisType, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Assesses financial health with scoring breakdown
+    /// </summary>
+    /// <param name="documentId">Document to analyze</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Financial health assessment</returns>
+    Task<FinancialHealthDto> AssessFinancialHealthAsync(int documentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Performs comprehensive risk assessment
+    /// </summary>
+    /// <param name="documentId">Document to analyze</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Risk assessment with mitigation strategies</returns>
+    Task<RiskAssessmentDto> AssessRisksAsync(int documentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates optimization suggestions for financial improvement
+    /// </summary>
+    /// <param name="documentId">Document to analyze</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of optimization suggestions</returns>
+    Task<List<string>> GenerateOptimizationSuggestionsAsync(int documentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates growth strategies for revenue and profitability
+    /// </summary>
+    /// <param name="documentId">Document to analyze</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of growth strategies</returns>
+    Task<List<string>> GenerateGrowthStrategiesAsync(int documentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Answers a custom question about the financial data
+    /// </summary>
+    /// <param name="documentId">Document to query</param>
+    /// <param name="question">User's question</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>AI-generated answer</returns>
+    Task<string> AnswerCustomQuestionAsync(int documentId, string question, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Answers question with conversation history context
+    /// </summary>
+    /// <param name="documentId">Document to query</param>
+    /// <param name="question">Current question</param>
+    /// <param name="conversationHistory">Previous Q&A pairs</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Context-aware answer</returns>
+    Task<string> AnswerWithContextAsync(int documentId, string question, List<string> conversationHistory, CancellationToken cancellationToken = default);
 }

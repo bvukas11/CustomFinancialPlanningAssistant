@@ -5,6 +5,10 @@ using OllamaSharp.Models;
 using Polly;
 using Polly.Retry;
 using CustomFinancialPlanningAssistant.Core.Entities;
+using CustomFinancialPlanningAssistant.Core.DTOs;
+using CustomFinancialPlanningAssistant.Infrastructure.Repositories;
+using System.Diagnostics;
+using System.Text;
 
 namespace CustomFinancialPlanningAssistant.Services.AI;
 
@@ -17,16 +21,21 @@ public class LlamaService : ILlamaService
     private readonly AIModelConfiguration _config;
     private readonly ILogger<LlamaService> _logger;
     private readonly AsyncRetryPolicy<string> _retryPolicy;
+    
+    // Phase 11: Additional dependencies for comprehensive insights
+    private readonly IFinancialDocumentRepository _documentRepo;
 
     /// <summary>
     /// Initializes a new instance of the LlamaService class
     /// </summary>
     public LlamaService(
         IOptions<AIModelConfiguration> config,
-        ILogger<LlamaService> logger)
+        ILogger<LlamaService> logger,
+        IFinancialDocumentRepository documentRepo)
     {
         _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _documentRepo = documentRepo ?? throw new ArgumentNullException(nameof(documentRepo));
 
         // Initialize Ollama client
         _ollamaClient = new OllamaApiClient(_config.OllamaBaseUrl);
@@ -358,6 +367,52 @@ Format the extracted data in a structured, tabular format.";
         return await AnalyzeDocumentImageAsync(imageData, question, cancellationToken);
     }
 
+    // ========== Comprehensive AI Insights Methods ==========
+
+    public async Task<string> GenerateComprehensiveInsightsAsync(
+        List<FinancialData> data,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateFinancialData(data, nameof(data));
+        
+        _logger.LogInformation("Generating comprehensive insights for {Count} records", data.Count);
+        
+        // Call underlying analysis methods and aggregate responses
+        var summary = await GenerateSummaryAsync(data, cancellationToken);
+        var trends = await AnalyzeTrendsAsync(data, "YTD", cancellationToken);
+        var anomalies = await DetectAnomaliesAsync(data, cancellationToken);
+        var ratios = await AnalyzeRatiosAsync(CalculateRatios(data), cancellationToken);
+        
+        // Combine insights into a cohesive response
+        var insights = new StringBuilder();
+        insights.AppendLine("=== Comprehensive Financial Insights ===");
+        insights.AppendLine("SUMMARY:");
+        insights.AppendLine(summary);
+        insights.AppendLine();
+        insights.AppendLine("TRENDS:");
+        insights.AppendLine(trends);
+        insights.AppendLine();
+        insights.AppendLine("ANOMALIES:");
+        insights.AppendLine(anomalies);
+        insights.AppendLine();
+        insights.AppendLine("RATIO ANALYSIS:");
+        insights.AppendLine(ratios);
+        
+        return insights.ToString();
+    }
+
+    private Dictionary<string, decimal> CalculateRatios(List<FinancialData> data)
+    {
+        // Implement custom logic to calculate financial ratios from data
+        // Placeholder for ratio calculation logic
+        return new Dictionary<string, decimal>
+        {
+            { "CurrentRatio", 1.5m },
+            { "QuickRatio", 1.2m },
+            { "DebtToEquity", 0.3m }
+        };
+    }
+
     // ========== Private Helper Methods ==========
 
     private void ValidateFinancialData(List<FinancialData> data, string paramName)
@@ -366,5 +421,495 @@ Format the extracted data in a structured, tabular format.";
         {
             throw new ArgumentException("Financial data cannot be null or empty", paramName);
         }
+    }
+
+    // ========== PHASE 11: Enhanced AI Insights Implementation ==========
+
+    public async Task<AIInsightDto> GenerateComprehensiveInsightsAsync(
+        int documentId,
+        string analysisType,
+        CancellationToken cancellationToken = default)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        
+        try
+        {
+            _logger.LogInformation(
+                "Generating comprehensive AI insights for document {DocumentId}, type: {AnalysisType}",
+                documentId,
+                analysisType);
+
+            // Get document and financial data
+            var document = await _documentRepo.GetWithDataAsync(documentId);
+            if (document == null)
+            {
+                throw new ArgumentException($"Document {documentId} not found");
+            }
+
+            var data = document.FinancialDataRecords.ToList();
+            if (!data.Any())
+            {
+                throw new InvalidOperationException("No financial data found for analysis");
+            }
+
+            // Calculate basic summary metrics
+            var summary = CalculateQuickSummary(data);
+            var ratios = CalculateBasicRatios(summary);
+
+            // Build specialized prompt based on analysis type
+            var prompt = BuildAnalysisPrompt(summary, ratios, analysisType);
+
+            // Get AI response
+            var aiResponse = await GenerateResponseAsync(prompt, cancellationToken);
+
+            stopwatch.Stop();
+
+            // Parse and structure the response
+            return new AIInsightDto
+            {
+                DocumentId = documentId,
+                DocumentName = document.FileName,
+                AnalysisType = analysisType,
+                Title = $"{analysisType} Analysis",
+                Summary = ExtractSummaryFromResponse(aiResponse),
+                DetailedAnalysis = aiResponse,
+                KeyFindings = AIResponseParser.ExtractKeyFindings(aiResponse),
+                Recommendations = AIResponseParser.ExtractRecommendations(aiResponse),
+                RiskFactors = ExtractRiskFactors(aiResponse),
+                Opportunities = ExtractOpportunities(aiResponse),
+                HealthScore = CalculateHealthScore(summary, ratios),
+                RiskLevel = DetermineRiskLevel(summary, ratios),
+                GeneratedDate = DateTime.UtcNow,
+                ExecutionTime = (int)stopwatch.ElapsedMilliseconds,
+                ModelUsed = _config.DefaultTextModel
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating comprehensive AI insights");
+            throw;
+        }
+    }
+
+    public async Task<FinancialHealthDto> AssessFinancialHealthAsync(
+        int documentId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Assessing financial health for document {DocumentId}", documentId);
+
+            var document = await _documentRepo.GetWithDataAsync(documentId);
+            if (document == null)
+            {
+                throw new ArgumentException($"Document {documentId} not found");
+            }
+
+            var data = document.FinancialDataRecords.ToList();
+            var summary = CalculateQuickSummary(data);
+            var ratios = CalculateBasicRatios(summary);
+
+            // Build health assessment prompt
+            var prompt = $@"As a financial health expert, assess the overall financial health based on:
+
+**Financial Summary:**
+- Total Revenue: {summary.Revenue:C}
+- Total Expenses: {summary.Expenses:C}
+- Net Income: {summary.NetIncome:C}
+- Total Assets: {summary.Assets:C}
+- Total Liabilities: {summary.Liabilities:C}
+- Equity: {summary.Equity:C}
+
+**Key Ratios:**
+{string.Join("\n", ratios.Select(r => $"- {r.Key}: {r.Value:F2}"))}
+
+Provide:
+1. Overall health assessment (Excellent/Good/Fair/Poor)
+2. Top 3 financial strengths
+3. Top 3 areas of concern
+4. Top 3 priority actions
+
+Be specific with numbers and percentages.";
+
+            var response = await GenerateResponseAsync(prompt, cancellationToken);
+
+            return ParseFinancialHealth(response, summary, ratios);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error assessing financial health");
+            throw;
+        }
+    }
+
+    public async Task<RiskAssessmentDto> AssessRisksAsync(
+        int documentId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Assessing risks for document {DocumentId}", documentId);
+
+            var document = await _documentRepo.GetWithDataAsync(documentId);
+            if (document == null)
+            {
+                throw new ArgumentException($"Document {documentId} not found");
+            }
+
+            var data = document.FinancialDataRecords.ToList();
+            var summary = CalculateQuickSummary(data);
+            var ratios = CalculateBasicRatios(summary);
+
+            var prompt = $@"You are a risk assessment expert. Identify and analyze financial risks based on:
+
+**Financial Data:**
+- Net Income: {summary.NetIncome:C}
+- Debt to Equity: {(summary.Equity != 0 ? (summary.Liabilities / summary.Equity) : 0):F2}
+- Current Ratio: {(summary.Liabilities != 0 ? (summary.Assets / summary.Liabilities) : 0):F2}
+- Profit Margin: {(summary.Revenue != 0 ? (summary.NetIncome / summary.Revenue * 100) : 0):F2}%";
+
+            var response = await GenerateResponseAsync(prompt, cancellationToken);
+
+            return ParseRiskAssessment(response, summary, ratios);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error assessing risks");
+            throw;
+        }
+    }
+
+    public async Task<List<string>> GenerateOptimizationSuggestionsAsync(
+        int documentId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Generating optimization suggestions for document {DocumentId}", documentId);
+
+            var document = await _documentRepo.GetWithDataAsync(documentId);
+            if (document == null)
+            {
+                throw new ArgumentException($"Document {documentId} not found");
+            }
+
+            var data = document.FinancialDataRecords.ToList();
+            var summary = CalculateQuickSummary(data);
+
+            var prompt = $@"Based on this financial data, provide 5-7 specific, actionable optimization suggestions:
+
+**Current State:**
+- Revenue: {summary.Revenue:C}
+- Expenses: {summary.Expenses:C}
+- Net Income: {summary.NetIncome:C}
+- Profit Margin: {(summary.Revenue != 0 ? (summary.NetIncome / summary.Revenue * 100) : 0):F2}%";
+
+            var response = await GenerateResponseAsync(prompt, cancellationToken);
+            return AIResponseParser.ExtractKeyFindings(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating optimization suggestions");
+            throw;
+        }
+    }
+
+    public async Task<List<string>> GenerateGrowthStrategiesAsync(
+        int documentId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Generating growth strategies for document {DocumentId}", documentId);
+
+            var document = await _documentRepo.GetWithDataAsync(documentId);
+            if (document == null)
+            {
+                throw new ArgumentException($"Document {documentId} not found");
+            }
+
+            var data = document.FinancialDataRecords.ToList();
+            var summary = CalculateQuickSummary(data);
+
+            var prompt = $@"Develop 5-7 growth strategies to grow revenue and profitability:
+
+**Current State:**
+- Revenue: {summary.Revenue:C}
+- Net Income: {summary.NetIncome:C}
+- Profit Margin: {(summary.Revenue != 0 ? (summary.NetIncome / summary.Revenue * 100) : 0):F2}%";
+
+            var response = await GenerateResponseAsync(prompt, cancellationToken);
+            return AIResponseParser.ExtractKeyFindings(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating growth strategies");
+            throw;
+        }
+    }
+
+    public async Task<string> AnswerCustomQuestionAsync(
+        int documentId,
+        string question,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Answering custom question for document {DocumentId}", documentId);
+
+            var document = await _documentRepo.GetWithDataAsync(documentId);
+            if (document == null)
+            {
+                throw new ArgumentException($"Document {documentId} not found");
+            }
+
+            var data = document.FinancialDataRecords.ToList();
+            var summary = CalculateQuickSummary(data);
+
+            var prompt = $@"You are a financial advisor. Answer the following question based on the financial data:
+
+**Question:** {question}
+
+**Financial Summary:**
+- Revenue: {summary.Revenue:C}
+- Expenses: {summary.Expenses:C}
+- Net Income: {summary.NetIncome:C}
+- Assets: {summary.Assets:C}
+- Liabilities: {summary.Liabilities:C}
+
+Provide a clear, concise answer with specific numbers where applicable.";
+
+            return await GenerateResponseAsync(prompt, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error answering custom question");
+            throw;
+        }
+    }
+
+    public async Task<string> AnswerWithContextAsync(
+        int documentId,
+        string question,
+        List<string> conversationHistory,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var document = await _documentRepo.GetWithDataAsync(documentId);
+            if (document == null)
+            {
+                throw new ArgumentException($"Document {documentId} not found");
+            }
+
+            var data = document.FinancialDataRecords.ToList();
+            var summary = CalculateQuickSummary(data);
+
+            var contextBuilder = new StringBuilder();
+            contextBuilder.AppendLine("Previous conversation:");
+            foreach (var msg in conversationHistory.TakeLast(5))
+            {
+                contextBuilder.AppendLine(msg);
+            }
+
+            var prompt = $@"You are a financial advisor. Answer the following question considering the conversation history.
+
+{contextBuilder}
+
+**Current Financial Summary:**
+- Revenue: {summary.Revenue:C}
+- Expenses: {summary.Expenses:C}
+- Net Income: {summary.NetIncome:C}
+
+**Question:** {question}
+
+Provide a clear, concise answer with specific numbers where applicable.";
+
+            return await GenerateResponseAsync(prompt, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error answering with context");
+            throw;
+        }
+    }
+
+    // ========== Private Helper Methods for Phase 11 ==========
+
+    private (decimal Revenue, decimal Expenses, decimal NetIncome, decimal Assets, decimal Liabilities, decimal Equity) CalculateQuickSummary(List<FinancialData> data)
+    {
+        var revenue = data.Where(d => d.Category == "Revenue").Sum(d => d.Amount);
+        var expenses = data.Where(d => d.Category == "Expense").Sum(d => d.Amount);
+        var assets = data.Where(d => d.Category == "Asset").Sum(d => d.Amount);
+        var liabilities = data.Where(d => d.Category == "Liability").Sum(d => d.Amount);
+        var equity = data.Where(d => d.Category == "Equity").Sum(d => d.Amount);
+        var netIncome = revenue - expenses;
+
+        return (revenue, expenses, netIncome, assets, liabilities, equity);
+    }
+
+    private Dictionary<string, decimal> CalculateBasicRatios(
+        (decimal Revenue, decimal Expenses, decimal NetIncome, decimal Assets, decimal Liabilities, decimal Equity) summary)
+    {
+        var ratios = new Dictionary<string, decimal>();
+
+        if (summary.Revenue > 0)
+        {
+            ratios["ProfitMargin"] = (summary.NetIncome / summary.Revenue) * 100;
+        }
+
+        if (summary.Liabilities > 0 && summary.Assets > 0)
+        {
+            ratios["CurrentRatio"] = summary.Assets / summary.Liabilities;
+        }
+
+        if (summary.Equity > 0 && summary.Liabilities > 0)
+        {
+            ratios["DebtToEquity"] = summary.Liabilities / summary.Equity;
+        }
+
+        return ratios;
+    }
+
+    private string BuildAnalysisPrompt(
+        (decimal Revenue, decimal Expenses, decimal NetIncome, decimal Assets, decimal Liabilities, decimal Equity) summary,
+        Dictionary<string, decimal> ratios,
+        string analysisType)
+    {
+        return analysisType switch
+        {
+            "HealthCheck" => $"Assess overall financial health. Revenue: {summary.Revenue:C}, Net Income: {summary.NetIncome:C}, Assets: {summary.Assets:C}",
+            "RiskAnalysis" => $"Identify financial risks. Debt/Equity: {ratios.GetValueOrDefault("DebtToEquity", 0):F2}, Profit Margin: {ratios.GetValueOrDefault("ProfitMargin", 0):F2}",
+            "Optimization" => $"Suggest optimization strategies. Expenses: {summary.Expenses:C}, Revenue: {summary.Revenue:C}",
+            "Growth" => $"Develop growth strategies. Current Revenue: {summary.Revenue:C}, Net Income: {summary.NetIncome:C}",
+            _ => $"Analyze financial data. Revenue: {summary.Revenue:C}, Net Income: {summary.NetIncome:C}"
+        };
+    }
+
+    private int CalculateHealthScore(
+        (decimal Revenue, decimal Expenses, decimal NetIncome, decimal Assets, decimal Liabilities, decimal Equity) summary,
+        Dictionary<string, decimal> ratios)
+    {
+        int score = 50; // Start at middle
+
+        // Profitability (30 points)
+        if (summary.NetIncome > 0) score += 15;
+        if (ratios.GetValueOrDefault("ProfitMargin", 0) > 10) score += 15;
+
+        // Liquidity (30 points)
+        if (ratios.GetValueOrDefault("CurrentRatio", 0) > 1.5m) score += 15;
+        if (summary.Assets > summary.Liabilities) score += 15;
+
+        // Efficiency (20 points)
+        if (summary.Revenue > 0 && summary.Expenses > 0)
+        {
+            var expenseRatio = (summary.Expenses / summary.Revenue) * 100;
+            if (expenseRatio < 80) score += 20;
+        }
+
+        return Math.Clamp(score, 0, 100);
+    }
+
+    private string DetermineRiskLevel(
+        (decimal Revenue, decimal Expenses, decimal NetIncome, decimal Assets, decimal Liabilities, decimal Equity) summary,
+        Dictionary<string, decimal> ratios)
+    {
+        int riskScore = 0;
+
+        if (summary.NetIncome < 0) riskScore += 30;
+        if (ratios.GetValueOrDefault("DebtToEquity", 0) > 2) riskScore += 20;
+        if (ratios.GetValueOrDefault("CurrentRatio", 0) < 1) riskScore += 25;
+        if (summary.Revenue > 0 && (summary.Expenses / summary.Revenue) > 0.9m) riskScore += 25;
+
+        return riskScore switch
+        {
+            > 60 => "Critical",
+            > 40 => "High",
+            > 20 => "Medium",
+            _ => "Low"
+        };
+    }
+
+    private string ExtractSummaryFromResponse(string response)
+    {
+        var lines = response.Split('\n').Take(5);
+        return string.Join(" ", lines).Trim();
+    }
+
+    private List<string> ExtractRiskFactors(string response)
+    {
+        // Simple extraction - look for lines containing "risk" or "concern"
+        return response.Split('\n')
+            .Where(line => line.ToLower().Contains("risk") || line.ToLower().Contains("concern"))
+            .Take(5)
+            .ToList();
+    }
+
+    private List<string> ExtractOpportunities(string response)
+    {
+        // Simple extraction - look for lines containing "opportunity" or "potential"
+        return response.Split('\n')
+            .Where(line => line.ToLower().Contains("opportunity") || line.ToLower().Contains("potential"))
+            .Take(5)
+            .ToList();
+    }
+
+    private FinancialHealthDto ParseFinancialHealth(
+        string response,
+        (decimal Revenue, decimal Expenses, decimal NetIncome, decimal Assets, decimal Liabilities, decimal Equity) summary,
+        Dictionary<string, decimal> ratios)
+    {
+        var healthScore = CalculateHealthScore(summary, ratios);
+        
+        return new FinancialHealthDto
+        {
+            OverallScore = healthScore,
+            ProfitabilityScore = (int)Math.Clamp(ratios.GetValueOrDefault("ProfitMargin", 0) * 5, 0, 100),
+            LiquidityScore = (int)Math.Clamp(ratios.GetValueOrDefault("CurrentRatio", 0) * 50, 0, 100),
+            EfficiencyScore = 75, // Placeholder
+            StabilityScore = summary.NetIncome > 0 ? 80 : 40,
+            OverallRating = healthScore switch
+            {
+                >= 80 => "Excellent",
+                >= 60 => "Good",
+                >= 40 => "Fair",
+                _ => "Poor"
+            },
+            Strengths = AIResponseParser.ExtractKeyFindings(response).Take(3).ToList(),
+            Weaknesses = ExtractRiskFactors(response).Take(3).ToList(),
+            Priorities = AIResponseParser.ExtractRecommendations(response).Take(3).ToList()
+        };
+    }
+
+    private RiskAssessmentDto ParseRiskAssessment(
+        string response,
+        (decimal Revenue, decimal Expenses, decimal NetIncome, decimal Assets, decimal Liabilities, decimal Equity) summary,
+        Dictionary<string, decimal> ratios)
+    {
+        var riskLevel = DetermineRiskLevel(summary, ratios);
+        
+        return new RiskAssessmentDto
+        {
+            RiskLevel = riskLevel,
+            RiskScore = riskLevel switch
+            {
+                "Critical" => 80,
+                "High" => 60,
+                "Medium" => 40,
+                _ => 20
+            },
+            Risks = new List<RiskItemDto>
+            {
+                new RiskItemDto
+                {
+                    Category = "Financial",
+                    Description = $"Net Income: {summary.NetIncome:C}",
+                    Severity = summary.NetIncome < 0 ? "High" : "Low",
+                    Impact = "Affects profitability",
+                    Recommendations = new List<string> { "Review expenses", "Increase revenue" }
+                }
+            },
+            MitigationStrategies = AIResponseParser.ExtractRecommendations(response)
+        };
     }
 }

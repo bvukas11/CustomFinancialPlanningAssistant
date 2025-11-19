@@ -1,25 +1,464 @@
 @page "/ai-insights"
+@using CustomFinancialPlanningAssistant.Services.AI
+@using CustomFinancialPlanningAssistant.Infrastructure.Repositories
+@using CustomFinancialPlanningAssistant.Core.Entities
+@using CustomFinancialPlanningAssistant.Core.DTOs
+@inject ILlamaService AIService
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
 @rendermode InteractiveServer
 
-<PageTitle>AI Insights</PageTitle>
+<PageTitle>AI Insights - Financial Analysis Assistant</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">AI-Powered Insights</MudText>
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.Psychology" Class="mr-2" />
+    AI-Powered Financial Insights
+</MudText>
 
-<MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
-    <MudText Typo="Typo.h6" Class="mb-2">
-        <MudIcon Icon="@Icons.Material.Filled.Psychology" Class="mr-2" />
-        Coming Soon!
-    </MudText>
-    <MudText>
-        The AI Insights page will provide:
-    </MudText>
-    <MudList T="string" Dense="true" Class="mt-2">
-        <MudListItem T="string" Icon="@Icons.Material.Filled.Insights">AI-generated financial insights</MudListItem>
-        <MudListItem T="string" Icon="@Icons.Material.Filled.Recommend">Personalized recommendations</MudListItem>
-        <MudListItem T="string" Icon="@Icons.Material.Filled.Warning">Anomaly detection and alerts</MudListItem>
-        <MudListItem T="string" Icon="@Icons.Material.Filled.Chat">Chat with your financial data</MudListItem>
-    </MudList>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/aitest" Class="mt-3">
-        Try AI Test Page
-    </MudButton>
-</MudAlert>
+<!-- Document & Analysis Selector -->
+<MudCard Elevation="2" Class="mb-4">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" md="8">
+                <MudSelect @bind-Value="_selectedDocumentId" 
+                           Label="Select Document" 
+                           Variant="Variant.Outlined"
+                           Disabled="_isGenerating">
+                    @foreach (var doc in _documents)
+                    {
+                        <MudSelectItem Value="@doc.Id">@doc.FileName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.AutoAwesome"
+                           OnClick="GenerateInsights"
+                           Disabled="_isGenerating || _selectedDocumentId == 0">
+                    Generate AI Insights
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@if (_isGenerating)
+{
+    <MudCard Elevation="2" Class="mb-4">
+        <MudCardContent>
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+            <MudText Align="Align.Center" Class="mt-2">
+                <MudIcon Icon="@Icons.Material.Filled.AutoFixHigh" Class="mr-2" />
+                AI is analyzing your financial data... (@_analysisType)
+            </MudText>
+        </MudCardContent>
+    </MudCard>
+}
+
+<!-- Analysis Tabs -->
+@if (_currentInsight != null)
+{
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+        <!-- Overview Tab -->
+        <MudTabPanel Text="Overview" Icon="@Icons.Material.Filled.Dashboard">
+            <MudGrid>
+                <!-- Health Score -->
+                <MudItem xs="12" md="4">
+                    <MudCard Elevation="0">
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6" Align="Align.Center">Financial Health Score</MudText>
+                            <div style="display: flex; justify-content: center; margin-top: 20px;">
+                                <MudProgressCircular Value="_currentInsight.HealthScore" 
+                                                     Size="Size.Large" 
+                                                     Color="@GetHealthScoreColor(_currentInsight.HealthScore)">
+                                    <MudText Typo="Typo.h4">@_currentInsight.HealthScore</MudText>
+                                </MudProgressCircular>
+                            </div>
+                            <MudText Align="Align.Center" Class="mt-2" Typo="Typo.h6">
+                                @GetHealthRating(_currentInsight.HealthScore)
+                            </MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <!-- Risk Level -->
+                <MudItem xs="12" md="4">
+                    <MudCard Elevation="0">
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6" Align="Align.Center">Risk Level</MudText>
+                            <div style="display: flex; justify-content: center; margin-top: 20px;">
+                                <MudIcon Icon="@GetRiskIcon(_currentInsight.RiskLevel)" 
+                                         Color="@GetRiskColor(_currentInsight.RiskLevel)"
+                                         Size="Size.Large" 
+                                         Style="font-size: 80px;" />
+                            </div>
+                            <MudText Typo="Typo.h5" Align="Align.Center" Class="mt-2">
+                                @_currentInsight.RiskLevel
+                            </MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                
+                <!-- Generation Info -->
+                <MudItem xs="12" md="4">
+                    <MudCard Elevation="0">
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6">Analysis Details</MudText>
+                            <MudText Typo="Typo.body2" Class="mt-2">
+                                <strong>Type:</strong> @_currentInsight.AnalysisType
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                <strong>Generated:</strong> @_currentInsight.GeneratedDate.ToString("g")
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                <strong>Time:</strong> @_currentInsight.ExecutionTime ms
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                <strong>Model:</strong> @_currentInsight.ModelUsed
+                            </MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+            
+            <!-- Summary -->
+            <MudCard Elevation="0" Class="mt-4">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Executive Summary</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body1">@_currentInsight.Summary</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudTabPanel>
+        
+        <!-- Key Findings Tab -->
+        <MudTabPanel Text="Key Findings" Icon="@Icons.Material.Filled.Lightbulb">
+            @if (_currentInsight.KeyFindings.Any())
+            {
+                <MudGrid>
+                    @foreach (var finding in _currentInsight.KeyFindings)
+                    {
+                        <MudItem xs="12" md="6">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                                @finding
+                            </MudAlert>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info">
+                    No specific findings identified yet. Try generating insights first.
+                </MudAlert>
+            }
+        </MudTabPanel>
+        
+        <!-- Recommendations Tab -->
+        <MudTabPanel Text="Recommendations" Icon="@Icons.Material.Filled.Recommend">
+            @if (_currentInsight.Recommendations.Any())
+            {
+                <MudList T="string">
+                    @foreach (var (recommendation, index) in _currentInsight.Recommendations.Select((r, i) => (r, i)))
+                    {
+                        <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success">
+                            <MudText Typo="Typo.body1"><strong>@(index + 1).</strong> @recommendation</MudText>
+                        </MudListItem>
+                        <MudDivider />
+                    }
+                </MudList>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info">
+                    No recommendations available yet. Generate insights to see AI-powered recommendations.
+                </MudAlert>
+            }
+        </MudTabPanel>
+        
+        <!-- Risks Tab -->
+        <MudTabPanel Text="Risk Factors" Icon="@Icons.Material.Filled.Warning">
+            @if (_currentInsight.RiskFactors.Any())
+            {
+                <MudGrid>
+                    @foreach (var risk in _currentInsight.RiskFactors)
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Warning">
+                                <MudText Typo="Typo.body1">@risk</MudText>
+                            </MudAlert>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Success">
+                    No significant risk factors detected. Your financial position appears stable!
+                </MudAlert>
+            }
+        </MudTabPanel>
+        
+        <!-- Opportunities Tab -->
+        <MudTabPanel Text="Opportunities" Icon="@Icons.Material.Filled.TrendingUp">
+            @if (_currentInsight.Opportunities.Any())
+            {
+                <MudList T="string">
+                    @foreach (var opportunity in _currentInsight.Opportunities)
+                    {
+                        <MudListItem T="string" Icon="@Icons.Material.Filled.Stars" IconColor="Color.Primary">
+                            <MudText Typo="Typo.body1">@opportunity</MudText>
+                        </MudListItem>
+                        <MudDivider />
+                    }
+                </MudList>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info">
+                    No specific opportunities identified yet. Generate insights to discover growth opportunities.
+                </MudAlert>
+            }
+        </MudTabPanel>
+        
+        <!-- Full Analysis Tab -->
+        <MudTabPanel Text="Full Analysis" Icon="@Icons.Material.Filled.Article">
+            <MudPaper Elevation="0" Class="pa-4" Style="white-space: pre-wrap; background-color: #f5f5f5;">
+                <MudText Typo="Typo.body1">
+                    @_currentInsight.DetailedAnalysis
+                </MudText>
+            </MudPaper>
+        </MudTabPanel>
+        
+        <!-- Custom Q&A Tab -->
+        <MudTabPanel Text="Ask AI" Icon="@Icons.Material.Filled.QuestionAnswer">
+            <MudCard Elevation="0">
+                <MudCardContent>
+                    <MudTextField @bind-Value="_customQuestion" 
+                                  Label="Ask a question about your financial data" 
+                                  Variant="Variant.Outlined"
+                                  Lines="3"
+                                  FullWidth="true"
+                                  Disabled="_isAnswering" />
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               Class="mt-2"
+                               StartIcon="@Icons.Material.Filled.Send"
+                               OnClick="AskCustomQuestion"
+                               Disabled="_isAnswering || string.IsNullOrWhiteSpace(_customQuestion) || _selectedDocumentId == 0">
+                        Ask AI
+                    </MudButton>
+                </MudCardContent>
+            </MudCard>
+            
+            @if (_isAnswering)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mt-4" />
+                <MudText Align="Align.Center" Class="mt-2">AI is thinking...</MudText>
+            }
+            
+            @if (_qaHistory.Any())
+            {
+                <MudTimeline Class="mt-4">
+                    @foreach (var qa in _qaHistory)
+                    {
+                        <MudTimelineItem Color="Color.Primary" Size="Size.Small">
+                            <MudCard Elevation="0">
+                                <MudCardContent>
+                                    <MudText Typo="Typo.body1" Color="Color.Primary">
+                                        <strong>Q:</strong> @qa.Question
+                                    </MudText>
+                                    <MudText Typo="Typo.body1" Class="mt-2">
+                                        <strong>A:</strong> @qa.Answer
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Class="mt-1" Color="Color.Secondary">
+                                        @qa.Timestamp.ToString("HH:mm:ss")
+                                    </MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudTimelineItem>
+                    }
+                </MudTimeline>
+            }
+        </MudTabPanel>
+    </MudTabs>
+    
+    <!-- Action Buttons -->
+    <MudCard Elevation="2" Class="mt-4">
+        <MudCardActions>
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="() => GenerateInsightsOfType(_analysisType)">
+                Regenerate
+            </MudButton>
+            <MudSpacer />
+            <MudSelect @bind-Value="_analysisType" 
+                       Label="Analysis Type" 
+                       Variant="Variant.Outlined"
+                       Immediate="true"
+                       OnClose="() => GenerateInsightsOfType(_analysisType)"
+                       Style="min-width: 250px;">
+                <MudSelectItem Value="@("HealthCheck")">Financial Health Check</MudSelectItem>
+                <MudSelectItem Value="@("RiskAnalysis")">Risk Assessment</MudSelectItem>
+                <MudSelectItem Value="@("Optimization")">Optimization Suggestions</MudSelectItem>
+                <MudSelectItem Value="@("Growth")">Growth Strategy</MudSelectItem>
+                <MudSelectItem Value="@("CashFlow")">Cash Flow Analysis</MudSelectItem>
+            </MudSelect>
+        </MudCardActions>
+    </MudCard>
+}
+else if (_selectedDocumentId == 0)
+{
+    <MudAlert Severity="Severity.Info">
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+            Welcome to AI Insights!
+        </MudText>
+        <MudText Class="mt-2">
+            Select a document above and click "Generate AI Insights" to get started with AI-powered financial analysis.
+        </MudText>
+        <MudList T="string" Dense="true" Class="mt-3">
+            <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle">Financial Health Scoring (0-100)</MudListItem>
+            <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle">Risk Assessment & Mitigation</MudListItem>
+            <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle">Optimization Strategies</MudListItem>
+            <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle">Growth Recommendations</MudListItem>
+            <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle">Custom Q&A with AI</MudListItem>
+        </MudList>
+    </MudAlert>
+}
+
+@code {
+    private List<FinancialDocument> _documents = new();
+    private int _selectedDocumentId;
+    private bool _isGenerating;
+    private bool _isAnswering;
+    private string _analysisType = "HealthCheck";
+    private AIInsightDto? _currentInsight;
+    private string _customQuestion = string.Empty;
+    private List<(string Question, string Answer, DateTime Timestamp)> _qaHistory = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocuments();
+    }
+    
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            _documents = (await DocumentRepo.GetAllAsync()).ToList();
+            if (_documents.Any())
+            {
+                _selectedDocumentId = _documents.First().Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading documents: {ex.Message}", Severity.Error);
+        }
+    }
+    
+    private async Task GenerateInsights()
+    {
+        await GenerateInsightsOfType(_analysisType);
+    }
+    
+    private async Task GenerateInsightsOfType(string analysisType)
+    {
+        if (_selectedDocumentId == 0) return;
+        
+        try
+        {
+            _isGenerating = true;
+            _analysisType = analysisType;
+            
+            _currentInsight = await AIService.GenerateComprehensiveInsightsAsync(_selectedDocumentId, analysisType);
+            
+            Snackbar.Add($"AI analysis complete! ({_currentInsight.ExecutionTime}ms)", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating insights: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+    
+    private async Task AskCustomQuestion()
+    {
+        if (string.IsNullOrWhiteSpace(_customQuestion) || _selectedDocumentId == 0) return;
+        
+        try
+        {
+            _isAnswering = true;
+            
+            var answer = await AIService.AnswerCustomQuestionAsync(_selectedDocumentId, _customQuestion);
+            
+            _qaHistory.Add((_customQuestion, answer, DateTime.Now));
+            _customQuestion = string.Empty;
+            
+            Snackbar.Add("Question answered!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isAnswering = false;
+        }
+    }
+    
+    // Helper methods for UI
+    private Color GetHealthScoreColor(int score)
+    {
+        return score switch
+        {
+            >= 80 => Color.Success,
+            >= 60 => Color.Info,
+            >= 40 => Color.Warning,
+            _ => Color.Error
+        };
+    }
+    
+    private string GetHealthRating(int score)
+    {
+        return score switch
+        {
+            >= 80 => "Excellent",
+            >= 60 => "Good",
+            >= 40 => "Fair",
+            _ => "Needs Attention"
+        };
+    }
+    
+    private Color GetRiskColor(string riskLevel)
+    {
+        return riskLevel switch
+        {
+            "Low" => Color.Success,
+            "Medium" => Color.Warning,
+            "High" => Color.Error,
+            "Critical" => Color.Error,
+            _ => Color.Default
+        };
+    }
+    
+    private string GetRiskIcon(string riskLevel)
+    {
+        return riskLevel switch
+        {
+            "Low" => Icons.Material.Filled.CheckCircle,
+            "Medium" => Icons.Material.Filled.Warning,
+            "High" => Icons.Material.Filled.Error,
+            "Critical" => Icons.Material.Filled.Dangerous,
+            _ => Icons.Material.Filled.Help
+        };
+    }
+}
