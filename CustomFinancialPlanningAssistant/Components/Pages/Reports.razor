@@ -7,7 +7,7 @@
 <PageTitle>Reports - Financial Analysis Assistant</PageTitle>
 
 <MudText Typo="Typo.h4" GutterBottom="true">Generate Reports</MudText>
-<MudText Typo="Typo.body1" Class="mb-4">Create comprehensive financial reports in Excel format</MudText>
+<MudText Typo="Typo.body1" Class="mb-4">Create comprehensive financial reports in Excel or PDF format</MudText>
 
 <MudCard Elevation="2">
     <MudCardContent>
@@ -34,7 +34,18 @@
                 </MudSelect>
             </MudItem>
             
-            <MudItem xs="12" md="6">
+            <MudItem xs="12" md="4">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Error" 
+                           FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                           OnClick="GeneratePdfReport"
+                           Disabled="_isGenerating || _selectedDocumentId == 0">
+                    Generate PDF Report
+                </MudButton>
+            </MudItem>
+            
+            <MudItem xs="12" md="4">
                 <MudButton Variant="Variant.Filled" 
                            Color="Color.Success" 
                            FullWidth="true"
@@ -45,7 +56,7 @@
                 </MudButton>
             </MudItem>
             
-            <MudItem xs="12" md="6">
+            <MudItem xs="12" md="4">
                 <MudButton Variant="Variant.Outlined" 
                            Color="Color.Primary" 
                            FullWidth="true"
@@ -77,7 +88,7 @@
                     <MudIcon Icon="@Icons.Material.Filled.Summarize" Size="Size.Large" Color="Color.Primary" />
                     <MudText Typo="Typo.h6" Class="mt-2">Summary Report</MudText>
                     <MudText Typo="Typo.body2">
-                        High-level overview with key financial metrics, totals, and highlights.
+                        High-level overview with key financial metrics, totals, and highlights. Perfect for executives.
                     </MudText>
                 </MudPaper>
             </MudItem>
@@ -129,6 +140,32 @@
         catch (Exception ex)
         {
             Snackbar.Add($"Error loading documents: {ex.Message}", Severity.Error);
+        }
+    }
+    
+    private async Task GeneratePdfReport()
+    {
+        try
+        {
+            _isGenerating = true;
+            
+            var pdfBytes = await ReportService.GeneratePdfReportAsync(_selectedDocumentId, _selectedReportType);
+            
+            var reportTypeName = _selectedReportType.ToString();
+            await JS.InvokeVoidAsync("downloadFile", 
+                Convert.ToBase64String(pdfBytes), 
+                $"FinancialReport_{reportTypeName}_{DateTime.Now:yyyyMMdd}.pdf", 
+                "application/pdf");
+            
+            Snackbar.Add("PDF report generated successfully!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating PDF report: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGenerating = false;
         }
     }
     

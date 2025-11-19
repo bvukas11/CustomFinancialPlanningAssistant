@@ -1,0 +1,49 @@
+Account Name,Account Code,Period,Amount,Currency,Category,Sub Category,Date
+Sales Revenue,4000,2020-01,125000,USD,Revenue,Product Sales,2020-01-31
+Sales Revenue,4000,2020-02,135000,USD,Revenue,Product Sales,2020-02-29
+Sales Revenue,4000,2020-03,140000,USD,Revenue,Product Sales,2020-03-31
+Sales Revenue,4000,2020-04,155000,USD,Revenue,Product Sales,2020-04-30
+Sales Revenue,4000,2020-05,165000,USD,Revenue,Product Sales,2020-05-31
+Sales Revenue,4000,2020-06,175000,USD,Revenue,Product Sales,2020-06-30
+Sales Revenue,4000,2020-07,180000,USD,Revenue,Product Sales,2020-07-31
+Sales Revenue,4000,2020-08,190000,USD,Revenue,Product Sales,2020-08-31
+Sales Revenue,4000,2020-09,185000,USD,Revenue,Product Sales,2020-09-30
+Sales Revenue,4000,2020-10,195000,USD,Revenue,Product Sales,2020-10-31
+Sales Revenue,4000,2020-11,200000,USD,Revenue,Product Sales,2020-11-30
+Sales Revenue,4000,2020-12,210000,USD,Revenue,Product Sales,2020-12-31
+Salaries Expense,5000,2020-01,85000,USD,Expense,Personnel,2020-01-31
+Salaries Expense,5000,2020-02,85000,USD,Expense,Personnel,2020-02-29
+Salaries Expense,5000,2020-03,88000,USD,Expense,Personnel,2020-03-31
+Salaries Expense,5000,2020-04,88000,USD,Expense,Personnel,2020-04-30
+Salaries Expense,5000,2020-05,90000,USD,Expense,Personnel,2020-05-31
+Salaries Expense,5000,2020-06,90000,USD,Expense,Personnel,2020-06-30
+Salaries Expense,5000,2020-07,92000,USD,Expense,Personnel,2020-07-31
+Salaries Expense,5000,2020-08,92000,USD,Expense,Personnel,2020-08-31
+Salaries Expense,5000,2020-09,95000,USD,Expense,Personnel,2020-09-30
+Salaries Expense,5000,2020-10,95000,USD,Expense,Personnel,2020-10-31
+Salaries Expense,5000,2020-11,98000,USD,Expense,Personnel,2020-11-30
+Salaries Expense,5000,2020-12,100000,USD,Expense,Personnel,2020-12-31
+Rent Expense,5200,2020-01,12000,USD,Expense,Facilities,2020-01-31
+Rent Expense,5200,2020-02,12000,USD,Expense,Facilities,2020-02-29
+Rent Expense,5200,2020-03,12000,USD,Expense,Facilities,2020-03-31
+Rent Expense,5200,2020-04,12000,USD,Expense,Facilities,2020-04-30
+Rent Expense,5200,2020-05,12000,USD,Expense,Facilities,2020-05-31
+Rent Expense,5200,2020-06,12000,USD,Expense,Facilities,2020-06-30
+Rent Expense,5200,2020-07,12000,USD,Expense,Facilities,2020-07-31
+Rent Expense,5200,2020-08,12000,USD,Expense,Facilities,2020-08-31
+Rent Expense,5200,2020-09,12000,USD,Expense,Facilities,2020-09-30
+Rent Expense,5200,2020-10,12000,USD,Expense,Facilities,2020-10-31
+Rent Expense,5200,2020-11,12000,USD,Expense,Facilities,2020-11-30
+Rent Expense,5200,2020-12,12000,USD,Expense,Facilities,2020-12-31
+Marketing Expense,5300,2020-01,15000,USD,Expense,Marketing,2020-01-31
+Marketing Expense,5300,2020-02,18000,USD,Expense,Marketing,2020-02-29
+Marketing Expense,5300,2020-03,20000,USD,Expense,Marketing,2020-03-31
+Marketing Expense,5300,2020-04,22000,USD,Expense,Marketing,2020-04-30
+Marketing Expense,5300,2020-05,25000,USD,Expense,Marketing,2020-05-31
+Marketing Expense,5300,2020-06,28000,USD,Expense,Marketing,2020-06-30
+Marketing Expense,5300,2020-07,30000,USD,Expense,Marketing,2020-07-31
+Marketing Expense,5300,2020-08,32000,USD,Expense,Marketing,2020-08-31
+Marketing Expense,5300,2020-09,28000,USD,Expense,Marketing,2020-09-30
+Marketing Expense,5300,2020-10,30000,USD,Expense,Marketing,2020-10-31
+Marketing Expense,5300,2020-11,35000,USD,Expense,Marketing,2020-11-30
+Marketing Expense,5300,2020-12,38000,USD,Expense,Marketing,2020-12-31

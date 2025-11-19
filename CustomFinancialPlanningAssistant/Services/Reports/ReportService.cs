@@ -11,34 +11,37 @@ namespace CustomFinancialPlanningAssistant.Services.Reports;
 /// </summary>
 public class ReportService : IReportService
 {
+    private readonly PdfReportService _pdfService;
     private readonly ExcelReportService _excelService;
     private readonly IFinancialService _financialService;
     private readonly ILogger<ReportService> _logger;
     
     public ReportService(
+        PdfReportService pdfService,
         ExcelReportService excelService,
         IFinancialService financialService,
         ILogger<ReportService> logger)
     {
+        _pdfService = pdfService;
         _excelService = excelService;
         _financialService = financialService;
         _logger = logger;
     }
     
-    public Task<byte[]> GeneratePdfReportAsync(int documentId, ReportType reportType)
+    public async Task<byte[]> GeneratePdfReportAsync(int documentId, ReportType reportType)
     {
-        // PDF generation temporarily disabled - use Excel instead
-        throw new NotImplementedException("PDF generation is temporarily disabled. Please use Excel reports.");
+        var options = CreateOptionsForReportType(documentId, reportType);
+        return await _pdfService.GeneratePdfReportAsync(documentId, options);
     }
     
     public Task<byte[]> GenerateCustomPdfReportAsync(int documentId, ReportTemplate template)
     {
-        throw new NotImplementedException("PDF generation is temporarily disabled.");
+        throw new NotImplementedException("Custom PDF templates not yet implemented.");
     }
     
     public Task<byte[]> GenerateComparisonPdfAsync(int documentId1, int documentId2)
     {
-        throw new NotImplementedException("PDF generation is temporarily disabled.");
+        throw new NotImplementedException("PDF comparison reports not yet implemented.");
     }
     
     public async Task<byte[]> GenerateExcelReportAsync(int documentId, ReportType reportType)
@@ -120,29 +123,32 @@ public class ReportService : IReportService
                 IncludeDetailedData = false,
                 IncludeRatios = false,
                 IncludeCharts = false,
-                IncludeAIInsights = false
+                IncludeAIInsights = false,
+                ReportDate = DateTime.Now
             },
             ReportType.Detailed => new ReportGenerationOptions
             {
                 DocumentId = documentId,
                 ReportType = reportType,
-                Title = "Detailed Financial Report",
+                Title = "Comprehensive Financial Report",
                 IncludeSummary = true,
                 IncludeDetailedData = true,
                 IncludeRatios = true,
                 IncludeCharts = false,
-                IncludeAIInsights = false
+                IncludeAIInsights = false,
+                ReportDate = DateTime.Now
             },
             ReportType.RatioAnalysis => new ReportGenerationOptions
             {
                 DocumentId = documentId,
                 ReportType = reportType,
-                Title = "Financial Ratio Analysis",
+                Title = "Financial Ratio Analysis Report",
                 IncludeSummary = true,
                 IncludeDetailedData = false,
                 IncludeRatios = true,
                 IncludeCharts = false,
-                IncludeAIInsights = false
+                IncludeAIInsights = false,
+                ReportDate = DateTime.Now
             },
             _ => new ReportGenerationOptions
             {
@@ -153,7 +159,8 @@ public class ReportService : IReportService
                 IncludeDetailedData = true,
                 IncludeRatios = true,
                 IncludeCharts = false,
-                IncludeAIInsights = false
+                IncludeAIInsights = false,
+                ReportDate = DateTime.Now
             }
         };
     }

@@ -1019,4 +1019,272 @@ private double CalculateStandardDeviation(List<decimal> values)
 
 #endregion
 
+// ===== TREND ANALYSIS METHODS (Phase 10) =====
+
+public async Task<TrendChartDataDto> GetRevenueTrendAsync(int documentId, int months = 12)
+{
+    // Get the selected document to find its period
+    var selectedDocument = await _documentRepo.GetWithDataAsync(documentId);
+    if (selectedDocument == null) throw new ArgumentException($"Document {documentId} not found");
+    
+    // Get the period of the selected document (e.g., "2023-06")
+    var selectedPeriod = selectedDocument.FinancialDataRecords.FirstOrDefault()?.Period;
+    
+    // Get ALL documents' data to show trends across time
+    var allDocuments = await _documentRepo.GetAllAsync();
+    var allData = new List<FinancialData>();
+    
+    foreach (var doc in allDocuments)
+    {
+        var docWithData = await _documentRepo.GetWithDataAsync(doc.Id);
+        if (docWithData?.FinancialDataRecords != null)
+        {
+            allData.AddRange(docWithData.FinancialDataRecords);
+        }
+    }
+    
+    // Filter to show only periods UP TO the selected document's period
+    var revenueData = allData
+        .Where(d => d.Category == "Revenue")
+        .Where(d => string.IsNullOrEmpty(selectedPeriod) || string.Compare(d.Period, selectedPeriod) <= 0) // Only periods <= selected
+        .GroupBy(d => d.Period)
+        .OrderBy(g => g.Key)
+        .TakeLast(months) // Take last N months up to selected period
+        .Select(g => new ChartDataPointDto
+        {
+            Label = g.Key,
+            Value = g.Sum(d => d.Amount),
+            Category = "Revenue",
+            Date = DateTime.TryParse(g.Key + "-01", out var date) ? date : DateTime.Now,
+            Color = "#4CAF50" // Green
+        })
+        .ToList();
+    
+    if (!revenueData.Any())
+    {
+        return new TrendChartDataDto
+        {
+            Title = "Revenue Trend",
+            DataPoints = new List<ChartDataPointDto>()
+        };
+    }
+    
+    return new TrendChartDataDto
+    {
+        DataPoints = revenueData,
+        Title = "Revenue Trend",
+        GrowthRate = CalculateGrowthRate(revenueData),
+        Average = revenueData.Average(d => d.Value),
+        Minimum = revenueData.Min(d => d.Value),
+        Maximum = revenueData.Max(d => d.Value)
+    };
+}
+
+public async Task<TrendChartDataDto> GetExpenseTrendAsync(int documentId, int months = 12)
+{
+    // Get the selected document to find its period
+    var selectedDocument = await _documentRepo.GetWithDataAsync(documentId);
+    if (selectedDocument == null) throw new ArgumentException($"Document {documentId} not found");
+    
+    var selectedPeriod = selectedDocument.FinancialDataRecords.FirstOrDefault()?.Period;
+    
+    // Get ALL documents' data to show trends across time
+    var allDocuments = await _documentRepo.GetAllAsync();
+    var allData = new List<FinancialData>();
+    
+    foreach (var doc in allDocuments)
+    {
+        var docWithData = await _documentRepo.GetWithDataAsync(doc.Id);
+        if (docWithData?.FinancialDataRecords != null)
+        {
+            allData.AddRange(docWithData.FinancialDataRecords);
+        }
+    }
+    
+    // Filter to show only periods UP TO the selected document's period
+    var expenseData = allData
+        .Where(d => d.Category == "Expense")
+        .Where(d => string.IsNullOrEmpty(selectedPeriod) || string.Compare(d.Period, selectedPeriod) <= 0)
+        .GroupBy(d => d.Period)
+        .OrderBy(g => g.Key)
+        .TakeLast(months) // Take last N months up to selected period
+        .Select(g => new ChartDataPointDto
+        {
+            Label = g.Key,
+            Value = g.Sum(d => d.Amount),
+            Category = "Expense",
+            Date = DateTime.TryParse(g.Key + "-01", out var date) ? date : DateTime.Now,
+            Color = "#F44336" // Red
+        })
+        .ToList();
+    
+    if (!expenseData.Any())
+    {
+        return new TrendChartDataDto
+        {
+            Title = "Expense Trend",
+            DataPoints = new List<ChartDataPointDto>()
+        };
+    }
+    
+    return new TrendChartDataDto
+    {
+        DataPoints = expenseData,
+        Title = "Expense Trend",
+        GrowthRate = CalculateGrowthRate(expenseData),
+        Average = expenseData.Average(d => d.Value),
+        Minimum = expenseData.Min(d => d.Value),
+        Maximum = expenseData.Max(d => d.Value)
+    };
+}
+
+public async Task<TrendChartDataDto> GetNetIncomeTrendAsync(int documentId, int months = 12)
+{
+    // Get the selected document to find its period
+    var selectedDocument = await _documentRepo.GetWithDataAsync(documentId);
+    if (selectedDocument == null) throw new ArgumentException($"Document {documentId} not found");
+    
+    var selectedPeriod = selectedDocument.FinancialDataRecords.FirstOrDefault()?.Period;
+    
+    // Get ALL documents' data to show trends across time
+    var allDocuments = await _documentRepo.GetAllAsync();
+    var allData = new List<FinancialData>();
+    
+    foreach (var doc in allDocuments)
+    {
+        var docWithData = await _documentRepo.GetWithDataAsync(doc.Id);
+        if (docWithData?.FinancialDataRecords != null)
+        {
+            allData.AddRange(docWithData.FinancialDataRecords);
+        }
+    }
+    
+    // Filter to show only periods UP TO the selected document's period
+    var periodData = allData
+        .Where(d => string.IsNullOrEmpty(selectedPeriod) || string.Compare(d.Period, selectedPeriod) <= 0)
+        .GroupBy(d => d.Period)
+        .OrderBy(g => g.Key)
+        .TakeLast(months) // Take last N months up to selected period
+        .Select(g => new
+        {
+            Period = g.Key,
+            Revenue = g.Where(d => d.Category == "Revenue").Sum(d => d.Amount),
+            Expenses = g.Where(d => d.Category == "Expense").Sum(d => d.Amount)
+        })
+        .Select(p => new ChartDataPointDto
+        {
+            Label = p.Period,
+            Value = p.Revenue - p.Expenses,
+            Category = "Net Income",
+            Date = DateTime.TryParse(p.Period + "-01", out var date) ? date : DateTime.Now,
+            Color = p.Revenue - p.Expenses > 0 ? "#4CAF50" : "#F44336"
+        })
+        .ToList();
+    
+    if (!periodData.Any())
+    {
+        return new TrendChartDataDto
+        {
+            Title = "Net Income Trend",
+            DataPoints = new List<ChartDataPointDto>()
+        };
+    }
+    
+    return new TrendChartDataDto
+    {
+        DataPoints = periodData,
+        Title = "Net Income Trend",
+        GrowthRate = CalculateGrowthRate(periodData),
+        Average = periodData.Average(d => d.Value),
+        Minimum = periodData.Min(d => d.Value),
+        Maximum = periodData.Max(d => d.Value)
+    };
+}
+
+public async Task<Dictionary<string, decimal>> GetCategoryBreakdownAsync(int documentId)
+{
+    var document = await _documentRepo.GetWithDataAsync(documentId);
+    if (document == null) throw new ArgumentException($"Document {documentId} not found");
+    
+    return document.FinancialDataRecords
+        .Where(d => d.Category == "Expense" && !string.IsNullOrEmpty(d.SubCategory))
+        .GroupBy(d => d.SubCategory)
+        .ToDictionary(
+            g => g.Key,
+            g => g.Sum(d => d.Amount)
+        );
+}
+
+public async Task<List<PeriodComparisonDto>> GetPeriodComparisonsAsync(int documentId)
+{
+    // Get the selected document to find its period
+    var selectedDocument = await _documentRepo.GetWithDataAsync(documentId);
+    if (selectedDocument == null) throw new ArgumentException($"Document {documentId} not found");
+    
+    var selectedPeriod = selectedDocument.FinancialDataRecords.FirstOrDefault()?.Period;
+    
+    // Get ALL documents' data to show trends across time
+    var allDocuments = await _documentRepo.GetAllAsync();
+    var allData = new List<FinancialData>();
+    
+    foreach (var doc in allDocuments)
+    {
+        var docWithData = await _documentRepo.GetWithDataAsync(doc.Id);
+        if (docWithData?.FinancialDataRecords != null)
+        {
+            allData.AddRange(docWithData.FinancialDataRecords);
+        }
+    }
+    
+    // Filter to show only periods UP TO the selected document's period
+    var periodTotals = allData
+        .Where(d => string.IsNullOrEmpty(selectedPeriod) || string.Compare(d.Period, selectedPeriod) <= 0)
+        .GroupBy(d => d.Period)
+        .OrderBy(g => g.Key)
+        .Select(g => new
+        {
+            Period = g.Key,
+            Revenue = g.Where(d => d.Category == "Revenue").Sum(d => d.Amount),
+            Expenses = g.Where(d => d.Category == "Expense").Sum(d => d.Amount)
+        })
+        .ToList();
+    
+    var comparisons = new List<PeriodComparisonDto>();
+    
+    for (int i = 1; i < periodTotals.Count; i++)
+    {
+        var current = periodTotals[i];
+        var previous = periodTotals[i - 1];
+        
+        var netIncomeCurrent = current.Revenue - current.Expenses;
+        var netIncomePrevious = previous.Revenue - previous.Expenses;
+        var change = netIncomeCurrent - netIncomePrevious;
+        var changePercent = netIncomePrevious != 0 ? (change / netIncomePrevious) * 100 : 0;
+        
+        comparisons.Add(new PeriodComparisonDto
+        {
+            CurrentPeriod = current.Period,
+            PreviousPeriod = previous.Period,
+            CurrentValue = netIncomeCurrent,
+            PreviousValue = netIncomePrevious,
+            Change = change,
+            ChangePercentage = changePercent,
+            IsImprovement = change > 0
+        });
+    }
+    
+    return comparisons;
+}
+
+private decimal CalculateGrowthRate(List<ChartDataPointDto> data)
+{
+    if (data.Count < 2) return 0;
+    
+    var first = data.First().Value;
+    var last = data.Last().Value;
+    
+    if (first == 0) return 0;
+    
+    return ((last - first) / first) * 100;
+}
 }

@@ -1,25 +1,495 @@
 @page "/trends"
+@inject IFinancialService FinancialService
+@inject IFinancialDocumentRepository DocumentRepo
+@inject ISnackbar Snackbar
 @rendermode InteractiveServer
 
-<PageTitle>Trends</PageTitle>
+<PageTitle>Financial Trends</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">Financial Trends</MudText>
+<style>
+    /* Base chart styling */
+    .mud-chart-line .mud-chart-xaxis text {
+        font-size: 11px;
+        font-weight: 500;
+    }
+    
+    /* For 24 months - smaller font, more compact */
+    .trends-24-months .mud-chart-line .mud-chart-xaxis text {
+        font-size: 10px;
+    }
+    
+    /* For 12 months */
+    .trends-12-months .mud-chart-line .mud-chart-xaxis text {
+        font-size: 11px;
+    }
+    
+    /* For 6 months */
+    .trends-6-months .mud-chart-line .mud-chart-xaxis text {
+        font-size: 12px;
+    }
+</style>
 
-<MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
-    <MudText Typo="Typo.h6" Class="mb-2">
-        <MudIcon Icon="@Icons.Material.Filled.Construction" Class="mr-2" />
-        Coming Soon!
-    </MudText>
-    <MudText>
-        The Trends page will show:
-    </MudText>
-    <MudList T="string" Dense="true" Class="mt-2">
-        <MudListItem T="string" Icon="@Icons.Material.Filled.TrendingUp">Revenue and expense trends over time</MudListItem>
-        <MudListItem T="string" Icon="@Icons.Material.Filled.ShowChart">Interactive charts and graphs</MudListItem>
-        <MudListItem T="string" Icon="@Icons.Material.Filled.Compare">Period-over-period comparisons</MudListItem>
-        <MudListItem T="string" Icon="@Icons.Material.Filled.Timeline">Growth rate analysis</MudListItem>
-    </MudList>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/" Class="mt-3">
-        Back to Dashboard
-    </MudButton>
-</MudAlert>
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Class="mr-2" />
+    Financial Trends Analysis
+</MudText>
+
+<!-- Document Selector -->
+<MudCard Elevation="2" Class="mb-4">
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudSelect @bind-Value="_selectedDocumentId" 
+                           Label="Select Document" 
+                           Variant="Variant.Outlined"
+                           T="int">
+                    @foreach (var doc in _documents)
+                    {
+                        <MudSelectItem T="int" Value="@doc.Id">@doc.FileName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudSelect @bind-Value="_selectedMonths" 
+                           Label="Time Period" 
+                           Variant="Variant.Outlined"
+                           T="int">
+                    <MudSelectItem T="int" Value="6">Last 6 Months</MudSelectItem>
+                    <MudSelectItem T="int" Value="12">Last 12 Months</MudSelectItem>
+                    <MudSelectItem T="int" Value="24">Last 24 Months</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" OnClick="LoadTrendsData">
+            Load Trends
+        </MudButton>
+    </MudCardContent>
+</MudCard>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+    <MudText Align="Align.Center" Class="mt-2">Loading trends data...</MudText>
+}
+else if (_selectedDocumentId == 0)
+{
+    <MudAlert Severity="Severity.Info">
+        Please select a document to view trends analysis.
+    </MudAlert>
+}
+else
+{
+    <!-- Revenue Trend Chart -->
+    <MudCard Elevation="2" Class="@GetChartCardClass()">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">
+                    <MudIcon Icon="@Icons.Material.Filled.ShowChart" Class="mr-2" />
+                    Revenue Trend (@_selectedMonths months)
+                </MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                <MudChip T="string" Color="Color.Success" Size="Size.Small">
+                    Growth: @_revenueGrowth.ToString("F2")%
+                </MudChip>
+            </CardHeaderActions>
+        </MudCardHeader>
+        <MudCardContent>
+            @if (_revenueData?.DataPoints.Any() == true)
+            {
+                <MudChart ChartType="ChartType.Line" 
+                          ChartSeries="@_revenueSeries" 
+                          XAxisLabels="@_revenueLabels.ToArray()"
+                          Width="100%" 
+                          Height="@GetChartHeight()"
+                          ChartOptions="@_chartOptions" />
+                
+                <MudGrid Class="mt-4">
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Average</MudText>
+                        <MudText Typo="Typo.h6">@_revenueData.Average.ToString("C0")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Minimum</MudText>
+                        <MudText Typo="Typo.h6">@_revenueData.Minimum.ToString("C0")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Maximum</MudText>
+                        <MudText Typo="Typo.h6">@_revenueData.Maximum.ToString("C0")</MudText>
+                    </MudItem>
+                </MudGrid>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning">No revenue data available for the selected period.</MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Expense Trend Chart -->
+    <MudCard Elevation="2" Class="@GetChartCardClass()">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">
+                    <MudIcon Icon="@Icons.Material.Filled.TrendingDown" Class="mr-2" />
+                    Expense Trend (@_selectedMonths months)
+                </MudText>
+            </CardHeaderContent>
+            <CardHeaderActions>
+                <MudChip T="string" Color="@(_expenseGrowth > 0 ? Color.Error : Color.Success)" Size="Size.Small">
+                    @(_expenseGrowth > 0 ? "+" : "")@_expenseGrowth.ToString("F2")%
+                </MudChip>
+            </CardHeaderActions>
+        </MudCardHeader>
+        <MudCardContent>
+            @if (_expenseData?.DataPoints.Any() == true)
+            {
+                <MudChart ChartType="ChartType.Line" 
+                          ChartSeries="@_expenseSeries" 
+                          XAxisLabels="@_expenseLabels.ToArray()"
+                          Width="100%" 
+                          Height="@GetChartHeight()"
+                          ChartOptions="@_chartOptions" />
+                
+                <MudGrid Class="mt-4">
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Average</MudText>
+                        <MudText Typo="Typo.h6">@_expenseData.Average.ToString("C0")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Minimum</MudText>
+                        <MudText Typo="Typo.h6">@_expenseData.Minimum.ToString("C0")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Maximum</MudText>
+                        <MudText Typo="Typo.h6">@_expenseData.Maximum.ToString("C0")</MudText>
+                    </MudItem>
+                </MudGrid>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning">No expense data available for the selected period.</MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Category Breakdown -->
+    <MudCard Elevation="2" Class="mb-4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">
+                    <MudIcon Icon="@Icons.Material.Filled.PieChart" Class="mr-2" />
+                    Expense Breakdown by Category
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            @if (_categoryData?.Any() == true)
+            {
+                <MudChart ChartType="ChartType.Donut" 
+                          InputData="@_categoryData.Values.Select(v => (double)v).ToArray()" 
+                          InputLabels="@_categoryData.Keys.ToArray()"
+                          Width="100%" Height="350px" />
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning">No category data available.</MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Period Comparisons -->
+    <MudCard Elevation="2">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">
+                    <MudIcon Icon="@Icons.Material.Filled.Compare" Class="mr-2" />
+                    Period-over-Period Comparison
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            @if (_periodComparisons?.Any() == true)
+            {
+                <MudTable Items="_periodComparisons" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Current Period</MudTh>
+                        <MudTh>Previous Period</MudTh>
+                        <MudTh>Current Value</MudTh>
+                        <MudTh>Previous Value</MudTh>
+                        <MudTh>Change</MudTh>
+                        <MudTh>% Change</MudTh>
+                        <MudTh>Status</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Current">@context.CurrentPeriod</MudTd>
+                        <MudTd DataLabel="Previous">@context.PreviousPeriod</MudTd>
+                        <MudTd DataLabel="Current Value">@context.CurrentValue.ToString("C0")</MudTd>
+                        <MudTd DataLabel="Previous Value">@context.PreviousValue.ToString("C0")</MudTd>
+                        <MudTd DataLabel="Change">
+                            <MudChip T="string" Color="@(context.Change > 0 ? Color.Success : Color.Error)" Size="Size.Small">
+                                @context.Change.ToString("C0")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="% Change">
+                            <MudChip T="string" Color="@(context.ChangePercentage > 0 ? Color.Success : Color.Error)" Size="Size.Small">
+                                @context.ChangePercentage.ToString("F2")%
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudIcon Icon="@(context.IsImprovement ? Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown)" 
+                                     Color="@(context.IsImprovement ? Color.Success : Color.Error)" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning">No comparison data available. Need at least 2 periods.</MudAlert>
+            }
+        </MudCardContent>
+    </MudCard>
+}
+
+@code {
+    private List<FinancialDocument> _documents = new();
+    private int _selectedDocumentId;
+    private int _selectedMonths = 12;
+    private bool _isLoading;
+    
+    private TrendChartDataDto? _revenueData;
+    private TrendChartDataDto? _expenseData;
+    private Dictionary<string, decimal>? _categoryData;
+    private List<PeriodComparisonDto>? _periodComparisons;
+    
+    private List<ChartSeries> _revenueSeries = new();
+    private List<string> _revenueLabels = new();
+    private List<ChartSeries> _expenseSeries = new();
+    private List<string> _expenseLabels = new();
+    
+    private decimal _revenueGrowth;
+    private decimal _expenseGrowth;
+    
+    private ChartOptions _chartOptions = new()
+    {
+        YAxisTicks = 1000,
+        YAxisFormat = "C0",
+        InterpolationOption = InterpolationOption.Straight,
+        LineStrokeWidth = 3,
+        XAxisLines = true,
+        YAxisLines = true
+    };
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocuments();
+    }
+    
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            _documents = (await DocumentRepo.GetAllAsync()).ToList();
+            if (_documents.Any())
+            {
+                _selectedDocumentId = _documents.First().Id;
+                await LoadTrendsData();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading documents: {ex.Message}", Severity.Error);
+        }
+    }
+    
+    private async Task LoadTrendsData()
+    {
+        if (_selectedDocumentId == 0) return;
+        
+        try
+        {
+            _isLoading = true;
+            StateHasChanged();
+            
+            // FIXED: Clear previous data to force refresh
+            _revenueData = null;
+            _expenseData = null;
+            _categoryData = null;
+            _periodComparisons = null;
+            _revenueSeries.Clear();
+            _revenueLabels.Clear();
+            _expenseSeries.Clear();
+            _expenseLabels.Clear();
+            
+            // Update chart options based on period length
+            UpdateChartOptions();
+            
+            // Load revenue trend
+            _revenueData = await FinancialService.GetRevenueTrendAsync(_selectedDocumentId, _selectedMonths);
+            _revenueGrowth = Math.Round(_revenueData.GrowthRate, 2);
+            _revenueSeries = new List<ChartSeries>
+            {
+                new ChartSeries
+                {
+                    Name = "Revenue",
+                    Data = _revenueData.DataPoints.Select(d => (double)d.Value).ToArray()
+                }
+            };
+            // Format labels based on number of months
+            _revenueLabels = FormatChartLabels(_revenueData.DataPoints.Select(d => d.Label).ToList());
+            
+            // Load expense trend
+            _expenseData = await FinancialService.GetExpenseTrendAsync(_selectedDocumentId, _selectedMonths);
+            _expenseGrowth = Math.Round(_expenseData.GrowthRate, 2);
+            _expenseSeries = new List<ChartSeries>
+            {
+                new ChartSeries
+                {
+                    Name = "Expenses",
+                    Data = _expenseData.DataPoints.Select(d => (double)d.Value).ToArray()
+                }
+            };
+            // Format labels based on number of months
+            _expenseLabels = FormatChartLabels(_expenseData.DataPoints.Select(d => d.Label).ToList());
+            
+            // Load category breakdown
+            _categoryData = await FinancialService.GetCategoryBreakdownAsync(_selectedDocumentId);
+            
+            // Load period comparisons
+            _periodComparisons = await FinancialService.GetPeriodComparisonsAsync(_selectedDocumentId);
+            
+            Snackbar.Add($"Trends data loaded successfully! ({_selectedMonths} months)", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading trends: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+    
+    /// <summary>
+    /// Updates chart options based on the number of months to display
+    /// For 24 months, increase chart height and adjust label display
+    /// </summary>
+    private void UpdateChartOptions()
+    {
+        _chartOptions = new ChartOptions
+        {
+            YAxisTicks = 1000,
+            YAxisFormat = "C0",
+            InterpolationOption = InterpolationOption.Straight,
+            LineStrokeWidth = 3,
+            XAxisLines = true,
+            YAxisLines = true,
+            MaxNumYAxisTicks = 10
+        };
+        
+        // For 24 months, we'll let CSS handle the rotation
+        // The chart will show all labels but they'll be rotated
+    }
+    
+    /// <summary>
+    /// Gets the appropriate chart height based on the number of months
+    /// </summary>
+    private string GetChartHeight()
+    {
+        return _selectedMonths switch
+        {
+            6 => "300px",
+            12 => "350px",
+            24 => "450px", // Taller chart for 24 months
+            _ => "350px"
+        };
+    }
+    
+    /// <summary>
+    /// Gets CSS class for chart card based on selected months
+    /// </summary>
+    private string GetChartCardClass()
+    {
+        var baseClass = "mb-4";
+        return _selectedMonths switch
+        {
+            6 => $"{baseClass} trends-6-months",
+            12 => $"{baseClass} trends-12-months",
+            24 => $"{baseClass} trends-24-months",
+            _ => baseClass
+        };
+    }
+    
+    /// <summary>
+    /// Formats chart labels based on the number of data points
+    /// For 24 months: "Jan '23", "Feb '23" (show every 2nd)
+    /// For 12 months: "Jan 2023"
+    /// For 6 months: "January 2023"
+    /// </summary>
+    private List<string> FormatChartLabels(List<string> labels)
+    {
+        if (!labels.Any()) return labels;
+        
+        var formattedLabels = new List<string>();
+        
+        // Determine how many labels to show based on total count
+        int showEveryNth = _selectedMonths switch
+        {
+            24 => 2,  // Show every 2nd label (12 labels total)
+            12 => 1,  // Show all labels
+            _ => 1    // Show all labels for 6 months or less
+        };
+        
+        for (int i = 0; i < labels.Count; i++)
+        {
+            if (i % showEveryNth == 0)
+            {
+                // Show this label with appropriate formatting
+                formattedLabels.Add(_selectedMonths switch
+                {
+                    24 => FormatLabelShort(labels[i]),      // "Jan '23"
+                    12 => FormatLabelMedium(labels[i]),     // "Jan 2023"
+                    _ => FormatLabelLong(labels[i])         // "January 2023"
+                });
+            }
+            else
+            {
+                // Hide this label by using empty string
+                formattedLabels.Add(string.Empty);
+            }
+        }
+        
+        return formattedLabels;
+    }
+    
+    private string FormatLabelShort(string label)
+    {
+        // Input: "2023-01" -> Output: "Jan '23"
+        if (DateTime.TryParse(label + "-01", out var date))
+        {
+            return date.ToString("MMM ''yy");
+        }
+        return label;
+    }
+    
+    private string FormatLabelMedium(string label)
+    {
+        // Input: "2023-01" -> Output: "Jan 2023"
+        if (DateTime.TryParse(label + "-01", out var date))
+        {
+            return date.ToString("MMM yyyy");
+        }
+        return label;
+    }
+    
+    private string FormatLabelLong(string label)
+    {
+        // Input: "2023-01" -> Output: "Jan 2023" (shorter for better fit)
+        if (DateTime.TryParse(label + "-01", out var date))
+        {
+            return date.ToString("MMM yyyy");  // Changed from "MMMM yyyy" to fit better
+        }
+        return label;
+    }
+}

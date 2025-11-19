@@ -7,8 +7,12 @@ using CustomFinancialPlanningAssistant.Services.Financial;
 using CustomFinancialPlanningAssistant.Services.Reports;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure QuestPDF License (Community - Free for non-commercial use)
+QuestPDF.Settings.License = LicenseType.Community;
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -45,8 +49,9 @@ builder.Services.AddScoped<IDocumentProcessor, DocumentProcessor>();
 // Register Financial Service
 builder.Services.AddScoped<IFinancialService, FinancialService>();
 
-// Register Report Services
-builder.Services.AddScoped<ExcelReportService>();
+// Register Report Services (Phase 7 & 9)
+builder.Services.AddScoped<PdfReportService>();        // NEW - Phase 9!
+builder.Services.AddScoped<ExcelReportService>();      // Phase 7
 builder.Services.AddScoped<IReportService, ReportService>();
 
 // Configure AI Settings

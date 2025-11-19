@@ -203,4 +203,31 @@ public interface IFinancialService
     /// <param name="period">Period identifier</param>
     /// <returns>True if anomalous</returns>
     Task<bool> IsAnomalousValueAsync(decimal value, string category, string period);
+
+    // ===== TREND ANALYSIS METHODS (Phase 10) =====
+    
+    /// <summary>
+    /// Gets revenue trend data for the specified number of months
+    /// </summary>
+    Task<TrendChartDataDto> GetRevenueTrendAsync(int documentId, int months = 12);
+    
+    /// <summary>
+    /// Gets expense trend data for the specified number of months
+    /// </summary>
+    Task<TrendChartDataDto> GetExpenseTrendAsync(int documentId, int months = 12);
+    
+    /// <summary>
+    /// Gets net income trend data for the specified number of months
+    /// </summary>
+    Task<TrendChartDataDto> GetNetIncomeTrendAsync(int documentId, int months = 12);
+    
+    /// <summary>
+    /// Gets expense breakdown by category
+    /// </summary>
+    Task<Dictionary<string, decimal>> GetCategoryBreakdownAsync(int documentId);
+    
+    /// <summary>
+    /// Gets period-over-period comparisons
+    /// </summary>
+    Task<List<PeriodComparisonDto>> GetPeriodComparisonsAsync(int documentId);
 }
