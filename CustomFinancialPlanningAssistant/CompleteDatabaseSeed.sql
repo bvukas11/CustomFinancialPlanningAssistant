@@ -1,29 +1,7 @@
-﻿# Database Seeding Guide - Financial Analysis Assistant
-
-## Overview
-This guide provides multiple approaches to seed your database with realistic financial data for development and testing.
-
----
-
-## Approach 1: SQL Script (100,000+ Records) - UPDATED VERSION
-
-### Complete SQL Script: CompleteDatabaseSeed.sql
-
-The complete seeding script is now available as `CompleteDatabaseSeed.sql` in the project root. This script includes all the enhanced data plus the new Industry Benchmark data for Phase 12.
-
-**New in Version 3.0:**
-- ✅ Industry Benchmark data for 10 industries
-- ✅ 40+ benchmark metrics for competitive analysis
-- ✅ Professional data sources and sample sizes
-- ✅ Ready for Industry Benchmarking feature
-
-### Enhanced SQL Script: SeedFinancialData_Enhanced.sql
-
-```sql
 -- =============================================
--- Financial Analysis Assistant - Enhanced Seed Data Script
--- Generates 100,000+ realistic financial records with proper trends
--- Version: 2.0 - Multi-period support with realistic variance
+-- Financial Analysis Assistant - Complete Seed Data Script
+-- Includes: Financial Documents, Data Records, AI Analyses, Reports, and Industry Benchmarks
+-- Version: 3.0 - Complete seeding with Phase 12 Industry Benchmarking
 -- =============================================
 
 USE FinancialAnalysisDB;
@@ -61,12 +39,12 @@ WHILE @DocumentCounter <= @TotalDocuments
 BEGIN
     DECLARE @UploadDate DATETIME = DATEADD(MONTH, (@DocumentCounter - 1), @StartDate);
     DECLARE @Period VARCHAR(20) = FORMAT(@UploadDate, 'yyyy-MM');
-    DECLARE @FileType VARCHAR(20) = CASE 
+    DECLARE @FileType VARCHAR(20) = CASE
         WHEN @DocumentCounter % 3 = 0 THEN 'Excel'
         WHEN @DocumentCounter % 3 = 1 THEN 'CSV'
         ELSE 'PDF'
     END;
-    
+
     INSERT INTO FinancialDocuments (FileName, FileType, UploadDate, FileSize, FilePath, Status, CreatedBy)
     VALUES (
         'Financial_Report_' + @Period + '.xlsx',
@@ -74,14 +52,14 @@ BEGIN
         @UploadDate,
         CAST((RAND(CHECKSUM(NEWID())) * 5000000 + 500000) AS BIGINT), -- Random size between 500KB and 5.5MB
         '/uploads/' + CAST(YEAR(@UploadDate) AS VARCHAR) + '/' + FORMAT(@UploadDate, 'MM') + '/report.xlsx',
-        CASE 
+        CASE
             WHEN @DocumentCounter = @TotalDocuments THEN 'Processing' -- Latest is still processing
             WHEN @DocumentCounter % 12 = 0 THEN 'Uploaded' -- Some just uploaded
-            ELSE 'Analyzed' 
+            ELSE 'Analyzed'
         END,
         'system@financialassistant.com'
     );
-    
+
     SET @DocumentCounter = @DocumentCounter + 1;
 END;
 
@@ -180,10 +158,10 @@ DECLARE @DocId INT;
 DECLARE @Period VARCHAR(20);
 DECLARE @MonthIndex INT;
 
-DECLARE doc_cursor CURSOR FOR 
-    SELECT Id, FORMAT(UploadDate, 'yyyy-MM') AS Period, 
+DECLARE doc_cursor CURSOR FOR
+    SELECT Id, FORMAT(UploadDate, 'yyyy-MM') AS Period,
            DATEDIFF(MONTH, '2023-01-01', UploadDate) AS MonthIndex
-    FROM FinancialDocuments 
+    FROM FinancialDocuments
     ORDER BY UploadDate;
 
 OPEN doc_cursor;
@@ -195,16 +173,16 @@ WHILE @@FETCH_STATUS = 0
 BEGIN
     -- Calculate seasonal factor (higher in Q4, lower in Q1)
     DECLARE @Month INT = CAST(RIGHT(@Period, 2) AS INT);
-    DECLARE @SeasonalFactor DECIMAL(5,3) = CASE 
+    DECLARE @SeasonalFactor DECIMAL(5,3) = CASE
         WHEN @Month IN (11, 12) THEN 1.15  -- 15% boost in Nov/Dec
         WHEN @Month IN (1, 2) THEN 0.90    -- 10% reduction in Jan/Feb
         WHEN @Month IN (6, 7) THEN 1.08    -- 8% boost in summer
         ELSE 1.00
     END;
-    
+
     -- Insert financial records for this period
     INSERT INTO FinancialDataRecords (DocumentId, AccountName, AccountCode, Period, Amount, Currency, Category, SubCategory, DateRecorded)
-    SELECT 
+    SELECT
         @DocId,
         AccountName,
         AccountCode,
@@ -222,13 +200,13 @@ BEGIN
         SubCategory,
         DATEADD(DAY, CAST((RAND(CHECKSUM(NEWID())) * 28) AS INT), @Period + '-01')
     FROM #AccountDefinitions
-    WHERE 
+    WHERE
         -- Only include accounts that make sense for this period
         (Category != 'Equity' OR @MonthIndex % 3 = 0); -- Equity less frequent
-    
+
     IF @DocId % 5 = 0
         PRINT 'Processed document ' + CAST(@DocId AS VARCHAR) + ' for period ' + @Period;
-    
+
     FETCH NEXT FROM doc_cursor INTO @DocId, @Period, @MonthIndex;
 END;
 
@@ -254,7 +232,7 @@ DECLARE @DocCount INT = (SELECT COUNT(*) FROM FinancialDocuments);
 WHILE @AnalysisCounter <= @TotalAnalyses
 BEGIN
     DECLARE @RandomDocId INT = CAST((RAND(CHECKSUM(NEWID())) * @DocCount + 1) AS INT);
-    
+
     -- Realistic analysis type distribution
     DECLARE @RandomType VARCHAR(50) = CASE CAST((RAND(CHECKSUM(NEWID())) * 100) AS INT) % 7
         WHEN 0 THEN 'Summary'
@@ -265,9 +243,9 @@ BEGIN
         WHEN 5 THEN 'Forecasting'
         ELSE 'Custom'
     END;
-    
+
     DECLARE @ExecutionTime INT = CAST((RAND(CHECKSUM(NEWID())) * 4500 + 800) AS INT); -- 800-5300ms
-    
+
     INSERT INTO AIAnalyses (DocumentId, AnalysisType, Prompt, Response, ModelUsed, ExecutionTime, CreatedDate, Rating)
     VALUES (
         @RandomDocId,
@@ -276,28 +254,28 @@ BEGIN
         CASE @RandomType
             WHEN 'Summary' THEN 'Financial Summary: Strong revenue growth of ' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 30 + 10) AS INT) AS VARCHAR) + '% observed. Operating margins healthy at ' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 15 + 15) AS INT) AS VARCHAR) + '%. Key strengths include diversified revenue streams.'
             WHEN 'TrendAnalysis' THEN 'Trend Analysis: Revenue showing consistent upward trend with ' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 5 + 10) AS INT) AS VARCHAR) + '% quarterly growth. Expenses well-controlled with stable margins.'
-            WHEN 'AnomalyDetection' THEN 'Anomaly Detection: Identified ' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 5 + 1) AS INT) AS VARCHAR) + ' unusual patterns. Investigation recommended for accounts with >3σ deviation.'
+            WHEN 'AnomalyDetection' THEN 'Anomaly Detection: Identified ' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 5 + 1) AS INT) AS VARCHAR) + ' unusual patterns. Investigation recommended for accounts with >3? deviation.'
             WHEN 'RatioAnalysis' THEN 'Ratio Analysis: Current Ratio: ' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 2 + 1.5) AS DECIMAL(4,2)) AS VARCHAR) + ', Debt-to-Equity: ' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 0.5 + 0.4) AS DECIMAL(4,2)) AS VARCHAR) + ', Profit Margin: ' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 10 + 15) AS INT) AS VARCHAR) + '%'
             WHEN 'Comparison' THEN 'Period Comparison: Current period shows ' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 20 + 5) AS INT) AS VARCHAR) + '% improvement vs prior period with controlled expense growth.'
             WHEN 'Forecasting' THEN 'Forecast: Based on 12-month trends, revenue projected to reach $' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 500000 + 1500000) AS INT) AS VARCHAR) + ' in next quarter with 85% confidence.'
             ELSE 'Custom Analysis: Comprehensive financial analysis completed with actionable insights. ' + CAST(@AnalysisCounter AS VARCHAR) + ' key recommendations provided.'
         END,
-        CASE 
+        CASE
             WHEN @AnalysisCounter % 3 = 0 THEN 'llama3.2'
             WHEN @AnalysisCounter % 3 = 1 THEN 'qwen2.5:8b'
             ELSE 'llama3.2-vision'
         END,
         @ExecutionTime,
         DATEADD(MINUTE, -CAST((RAND(CHECKSUM(NEWID())) * 50000) AS INT), GETDATE()),
-        CASE 
+        CASE
             WHEN @AnalysisCounter % 7 = 0 THEN NULL  -- 14% unrated
             ELSE CAST((RAND(CHECKSUM(NEWID())) * 2 + 3.5) AS INT)  -- Rating 3-5
         END
     );
-    
+
     IF @AnalysisCounter % 100 = 0
         PRINT 'Generated ' + CAST(@AnalysisCounter AS VARCHAR) + ' analyses';
-    
+
     SET @AnalysisCounter = @AnalysisCounter + 1;
 END;
 
@@ -323,15 +301,9 @@ BEGIN
         WHEN 4 THEN 'RatioAnalysis'
         ELSE 'Custom'
     END;
-    
+
     DECLARE @ReportDocId INT = CAST((RAND(CHECKSUM(NEWID())) * 24 + 1) AS INT);
 
-    -- Add before INSERT:
-   DECLARE @RandomHourOffset INT = CAST((RAND(CHECKSUM(NEWID())) * 2000) AS INT);
-   DECLARE @RandomRecordsAnalyzed INT = CAST((RAND(CHECKSUM(NEWID())) * 5000 + 1000) AS INT);
-   DECLARE @RandomMonth INT = CAST((RAND(CHECKSUM(NEWID())) * 12 + 1) AS INT);
-
-    
     INSERT INTO Reports (Title, Description, ReportType, GeneratedDate, Content, Parameters)
     VALUES (
         @ReportType + ' Financial Report #' + CAST(@ReportCounter AS VARCHAR),
@@ -341,10 +313,10 @@ BEGIN
         '{"reportType":"' + @ReportType + '","summary":"Generated successfully","metrics":{"recordsAnalyzed":' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 5000 + 1000) AS INT) AS VARCHAR) + '}}',
         '{"documentId":' + CAST(@ReportDocId AS VARCHAR) + ',"period":"2023-' + RIGHT('0' + CAST(CAST((RAND(CHECKSUM(NEWID())) * 12 + 1) AS INT) AS VARCHAR), 2) + '","format":"Excel"}'
     );
-    
+
     IF @ReportCounter % 50 = 0
         PRINT 'Generated ' + CAST(@ReportCounter AS VARCHAR) + ' reports';
-    
+
     SET @ReportCounter = @ReportCounter + 1;
 END;
 
@@ -424,12 +396,9 @@ INSERT INTO IndustryBenchmarks (Industry, MetricName, AverageValue, MedianValue,
 PRINT 'Industry benchmark data seeded successfully!';
 GO
 
--- Declare variables for counts
-DECLARE @DocCount INT = (SELECT COUNT(*) FROM FinancialDocuments);
-DECLARE @DataCount INT = (SELECT COUNT(*) FROM FinancialDataRecords);
-DECLARE @AnalysisCount INT = (SELECT COUNT(*) FROM AIAnalyses);
-DECLARE @ReportCount INT = (SELECT COUNT(*) FROM Reports);
-DECLARE @BenchmarkCount INT = (SELECT COUNT(*) FROM IndustryBenchmarks);
+-- =============================================
+-- STEP 7: Verify Data and Show Statistics
+-- =============================================
 
 PRINT '';
 PRINT '=============================================';
@@ -438,18 +407,18 @@ PRINT '=============================================';
 PRINT '';
 PRINT 'RECORD COUNTS:';
 PRINT '-------------';
-PRINT 'Financial Documents:    ' + CAST(@DocCount AS VARCHAR);
-PRINT 'Financial Data Records: ' + CAST(@DataCount AS VARCHAR);
-PRINT 'AI Analyses:            ' + CAST(@AnalysisCount AS VARCHAR);
-PRINT 'Reports:                ' + CAST(@ReportCount AS VARCHAR);
-PRINT 'Industry Benchmarks:    ' + CAST(@BenchmarkCount AS VARCHAR);
+PRINT 'Financial Documents:    ' + CAST((SELECT COUNT(*) FROM FinancialDocuments) AS VARCHAR);
+PRINT 'Financial Data Records: ' + CAST((SELECT COUNT(*) FROM FinancialDataRecords) AS VARCHAR);
+PRINT 'AI Analyses:            ' + CAST((SELECT COUNT(*) FROM AIAnalyses) AS VARCHAR);
+PRINT 'Reports:                ' + CAST((SELECT COUNT(*) FROM Reports) AS VARCHAR);
+PRINT 'Industry Benchmarks:    ' + CAST((SELECT COUNT(*) FROM IndustryBenchmarks) AS VARCHAR);
 PRINT '';
 
 PRINT 'DATA QUALITY CHECKS:';
 PRINT '-------------------';
 
 -- Check period distribution
-SELECT 
+SELECT
     'Period Distribution' AS CheckType,
     COUNT(DISTINCT Period) AS DistinctPeriods,
     MIN(Period) AS EarliestPeriod,
@@ -457,7 +426,7 @@ SELECT
 FROM FinancialDataRecords;
 
 -- Check category totals
-SELECT 
+SELECT
     Category,
     COUNT(*) AS RecordCount,
     FORMAT(SUM(Amount), 'C', 'en-US') AS TotalAmount,
@@ -467,17 +436,44 @@ GROUP BY Category
 ORDER BY Category;
 
 PRINT '';
+PRINT 'INDUSTRY BENCHMARK VERIFICATION:';
+PRINT '--------------------------------';
+
+SELECT
+    Industry,
+    COUNT(*) AS BenchmarkCount,
+    STRING_AGG(MetricName, ', ') AS Metrics
+FROM IndustryBenchmarks
+GROUP BY Industry
+ORDER BY Industry;
+
+SELECT
+    'Total Benchmarks' AS Metric,
+    COUNT(*) AS Count
+FROM IndustryBenchmarks;
+
+SELECT
+    MetricName,
+    COUNT(*) AS IndustryCount,
+    FORMAT(AVG(AverageValue), 'F2') AS AvgValue,
+    FORMAT(MIN(AverageValue), 'F2') AS MinValue,
+    FORMAT(MAX(AverageValue), 'F2') AS MaxValue
+FROM IndustryBenchmarks
+GROUP BY MetricName
+ORDER BY MetricName;
+
+PRINT '';
 PRINT 'SAMPLE DATA:';
 PRINT '-----------';
 
 -- Show latest document
-SELECT TOP 1 
+SELECT TOP 1
     'Latest Document:' AS Info,
-    FileName, 
-    FileType, 
-    Status, 
+    FileName,
+    FileType,
+    Status,
     FORMAT(UploadDate, 'yyyy-MM-dd') AS UploadDate
-FROM FinancialDocuments 
+FROM FinancialDocuments
 ORDER BY UploadDate DESC;
 
 -- Show revenue trend
@@ -490,146 +486,13 @@ GROUP BY Period
 ORDER BY Period DESC;
 
 PRINT '';
-PRINT '=============================================';
-PRINT '  Seeding completed successfully!';
-PRINT '  You can now use the Trends page to see';
-PRINT '  beautiful charts with 24 months of data!';
-PRINT '  Industry Benchmarking is ready for analysis!';
-PRINT '=============================================';
+PRINT '=============================================',
+'  Seeding completed successfully!',
+'  You can now use the AI Insights page to see',
+'  Industry Benchmarking, Investment Advice,',
+'  and Cash Flow Optimization features!',
+'  The Trends page shows beautiful charts',
+'  with 24 months of data!',
+'=============================================';
 
 GO
-
--- Check monthly revenue growth
-SELECT 
-    Period,
-    FORMAT(SUM(Amount), 'C0') AS Revenue,
-    FORMAT(
-        (SUM(Amount) - LAG(SUM(Amount)) OVER (ORDER BY Period)) / 
-        NULLIF(LAG(SUM(Amount)) OVER (ORDER BY Period), 0) * 100,
-        'F2'
-    ) + '%' AS GrowthRate
-FROM FinancialDataRecords
-WHERE Category = 'Revenue'
-GROUP BY Period
-ORDER BY Period;
-
--- Check expense control
-SELECT 
-    Period,
-    FORMAT(SUM(Amount), 'C0') AS Expenses,
-    FORMAT(
-        SUM(CASE WHEN Category = 'Revenue' THEN Amount ELSE 0 END) /
-        NULLIF(SUM(CASE WHEN Category = 'Expense' THEN Amount ELSE 0 END), 0),
-        'F2'
-    ) AS RevenueToExpenseRatio
-FROM FinancialDataRecords
-WHERE Category IN ('Revenue', 'Expense')
-GROUP BY Period
-ORDER BY Period;
-
--- Check account variety
-SELECT 
-    Category,
-    COUNT(DISTINCT AccountName) AS UniqueAccounts,
-    COUNT(*) AS TotalRecords
-FROM FinancialDataRecords
-GROUP BY Category;
-
-```
-
-### Step 2: Run the Complete Script
-```powershell
-# Using SQL Server Management Studio (SSMS)
-# - Open SSMS
-# - Connect to your database
-# - Open CompleteDatabaseSeed.sql
-# - Execute (F5)
-
-# OR using sqlcmd
-sqlcmd -S (localdb)\mssqllocaldb -d FinancialAnalysisDB -i CompleteDatabaseSeed.sql
-
-# OR using dotnet ef (if you prefer)
-# Note: This script is designed for direct SQL execution, not EF migrations
-```
-
-### Step 3: Verify the Seeding
-```sql
--- Check all tables are populated
-SELECT 'Documents' as TableName, COUNT(*) as Count FROM FinancialDocuments
-UNION ALL
-SELECT 'Data Records', COUNT(*) FROM FinancialDataRecords
-UNION ALL
-SELECT 'AI Analyses', COUNT(*) FROM AIAnalyses
-UNION ALL
-SELECT 'Reports', COUNT(*) FROM Reports
-UNION ALL
-SELECT 'Industry Benchmarks', COUNT(*) FROM IndustryBenchmarks;
-```
-
----
-
-## What's New in Complete Version 3.0
-
-### ✅ **Industry Benchmark Data**
-- 40 benchmark records across 10 industries
-- Technology, Healthcare, Finance, Manufacturing, Retail, Energy, Real Estate, Transportation, Professional Services, Agriculture
-- Professional data sources (S&P, Federal Reserve, industry associations)
-- Realistic sample sizes and statistical distributions
-
-### ✅ **Complete Feature Support**
-- All Phase 1-12 features supported
-- Industry Benchmarking ready to use
-- Investment Advice and Cash Flow Optimization data
-- 24 months of trend data for analysis
-
-### ✅ **Production-Ready Data**
-- Realistic growth patterns and seasonal variations
-- Professional account structure
-- Comprehensive AI analysis samples
-- Multiple report types and formats
-
----
-
-## Expected Results After Complete Seeding
-
-### Revenue Trend (24 months):
-```
-2023-01: $1,115,000
-2023-06: $1,245,000 (+11.6%)
-2023-12: $1,385,000 (+24.2%)
-2024-06: $1,535,000 (+37.7%)
-2024-12: $1,695,000 (+52.0%)
-```
-
-### Category Distribution:
-```
-Revenue:     ~$33M total (growing)
-Expenses:    ~$21M total (controlled growth)
-Assets:      ~$78M total (stable)
-Liabilities: ~$34M total (declining)
-Equity:      ~$60M total (growing)
-Industry Benchmarks: ~40 records across 10 industries
-```
-
-### Industry Benchmark Coverage:
-```
-Technology: 7 metrics (Gross Margin, Operating Margin, etc.)
-Healthcare: 4 metrics (Hospital-specific benchmarks)
-Finance: 4 metrics (Banking industry standards)
-Manufacturing: 4 metrics (Manufacturing efficiency)
-Retail: 4 metrics (Retail operations)
-Energy: 4 metrics (Energy sector performance)
-Real Estate: 4 metrics (Real estate investment)
-Transportation: 4 metrics (Transportation logistics)
-Professional Services: 4 metrics (Service industry)
-Agriculture: 4 metrics (Agricultural operations)
-
-
-
-
-
-
-
-
-
-

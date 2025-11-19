@@ -196,4 +196,32 @@ public interface ILlamaService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Context-aware answer</returns>
     Task<string> AnswerWithContextAsync(int documentId, string question, List<string> conversationHistory, CancellationToken cancellationToken = default);
+
+    // ========== PHASE 12: Industry Benchmarking & Competitive Analysis ==========
+
+    /// <summary>
+    /// Performs comprehensive industry benchmarking and competitive analysis
+    /// </summary>
+    /// <param name="documentId">Document to analyze</param>
+    /// <param name="industry">Industry for benchmarking</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Complete competitive analysis with benchmarks and insights</returns>
+    Task<CompetitiveAnalysisDto> PerformIndustryBenchmarkingAsync(int documentId, Core.Enums.IndustryType industry, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates personalized investment recommendations
+    /// </summary>
+    /// <param name="documentId">Document to analyze</param>
+    /// <param name="riskTolerance">Investor's risk tolerance level</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Investment recommendation with rationale</returns>
+    Task<InvestmentRecommendationDto> GenerateInvestmentAdviceAsync(int documentId, string riskTolerance, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Optimizes cash flow management with actionable strategies
+    /// </summary>
+    /// <param name="documentId">Document to analyze</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Cash flow optimization plan with timeline</returns>
+    Task<CashFlowOptimizationDto> OptimizeCashFlowAsync(int documentId, CancellationToken cancellationToken = default);
 }

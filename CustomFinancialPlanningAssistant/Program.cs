@@ -39,6 +39,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IFinancialDocumentRepository, FinancialDocumentRepository>();
 builder.Services.AddScoped<IFinancialDataRepository, FinancialDataRepository>();
 builder.Services.AddScoped<IAIAnalysisRepository, AIAnalysisRepository>();
+builder.Services.AddScoped<IIndustryBenchmarkRepository, IndustryBenchmarkRepository>();
 
 // Register File Storage Service
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
@@ -90,11 +91,16 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation("Applying database migrations...");
         context.Database.Migrate();
         logger.LogInformation("Database migrations applied successfully");
+
+        // Seed industry benchmark data
+        logger.LogInformation("Seeding industry benchmark data...");
+        DatabaseSeeder.SeedIndustryBenchmarks(context);
+        logger.LogInformation("Industry benchmark data seeding completed");
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while migrating the database");
+        logger.LogError(ex, "An error occurred while migrating or seeding the database");
         // In development, you might want to throw, in production you might want to continue
         if (builder.Environment.IsDevelopment())
         {

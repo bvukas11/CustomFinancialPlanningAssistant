@@ -422,4 +422,188 @@ Be specific, data-driven, and actionable in your response.";
 
         return (average, median, data.Count);
     }
+
+    /// <summary>
+    /// Generates a prompt for industry benchmarking and competitive analysis
+    /// </summary>
+    /// <param name="companyMetrics">Company's calculated financial metrics</param>
+    /// <param name="industry">Industry type for benchmarking</param>
+    /// <param name="benchmarks">Industry benchmark data</param>
+    /// <returns>Formatted prompt for industry benchmarking analysis</returns>
+    public static string GetIndustryBenchmarkPrompt(
+        Dictionary<string, decimal> companyMetrics,
+        string industry,
+        Dictionary<string, decimal> industryAverages)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Company Financial Metrics:");
+        foreach (var metric in companyMetrics.OrderBy(m => m.Key))
+        {
+            sb.AppendLine($"  {metric.Key}: {metric.Value:N2}");
+        }
+
+        sb.AppendLine("\nIndustry Benchmark Averages:");
+        foreach (var benchmark in industryAverages.OrderBy(b => b.Key))
+        {
+            sb.AppendLine($"  {benchmark.Key}: {benchmark.Value:N2}");
+        }
+
+        return $@"You are an expert financial analyst specializing in industry benchmarking and competitive analysis. Compare this company's financial performance against {industry} industry benchmarks:
+
+{sb}
+
+Please provide comprehensive benchmarking analysis:
+
+1. **Performance Rating for Each Metric**
+   - Rate each metric as: ""Above Industry Average"", ""At Industry Average"", or ""Below Industry Average""
+   - Calculate variance percentage from industry average
+   - Provide specific numbers and comparisons
+
+2. **Competitive Position Assessment**
+   - Overall competitive positioning (Leader, Above Average, Average, Below Average, Laggard)
+   - Key competitive advantages
+   - Key competitive disadvantages
+   - Market positioning summary
+
+3. **Industry-Specific Insights**
+   - What these metrics indicate about {industry} sector performance
+   - Industry trends and standards
+   - Competitive landscape factors
+
+4. **Strategic Recommendations**
+   - Specific actions to improve weak areas
+   - Strategies to leverage strengths
+   - Industry-specific improvement opportunities
+   - Timeline for implementing changes
+
+5. **Growth Opportunities**
+   - Areas with potential for competitive advantage
+   - Industry trends to capitalize on
+   - Strategic initiatives based on benchmarking
+
+Be specific with numbers, provide actionable recommendations, and explain the business implications of each finding. Focus on insights that drive strategic decision-making.";
+    }
+
+    /// <summary>
+    /// Generates a prompt for investment recommendation analysis
+    /// </summary>
+    /// <param name="companyMetrics">Company's financial metrics</param>
+    /// <param name="industry">Industry type</param>
+    /// <param name="riskTolerance">Investor's risk tolerance</param>
+    /// <returns>Formatted prompt for investment analysis</returns>
+    public static string GetInvestmentRecommendationPrompt(
+        Dictionary<string, decimal> companyMetrics,
+        string industry,
+        string riskTolerance)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Company Financial Metrics:");
+        foreach (var metric in companyMetrics.OrderBy(m => m.Key))
+        {
+            sb.AppendLine($"  {metric.Key}: {metric.Value:N2}");
+        }
+
+        return $@"You are a financial advisor providing investment recommendations. Analyze this company's investment potential:
+
+{sb}
+
+**Industry:** {industry}
+**Investor Risk Tolerance:** {riskTolerance}
+
+Please provide comprehensive investment analysis:
+
+1. **Investment Rating**
+   - Overall recommendation: Buy/Hold/Sell equivalent
+   - Confidence level in the rating
+   - Key factors influencing the rating
+
+2. **Financial Health Assessment**
+   - Strength of financial position
+   - Growth potential indicators
+   - Risk factors and concerns
+
+3. **Valuation Analysis**
+   - Fair value assessment based on fundamentals
+   - Growth prospects consideration
+   - Industry positioning impact
+
+4. **Risk Assessment**
+   - Business risks specific to {industry}
+   - Financial risks based on metrics
+   - Market and competitive risks
+
+5. **Investment Strategy**
+   - Recommended investment timeframe
+   - Position sizing suggestions
+   - Diversification considerations
+
+6. **Key Catalysts and Risks**
+   - Events that could drive stock higher
+   - Potential downside risks
+   - Monitoring recommendations
+
+Provide specific, actionable investment advice with clear rationale based on the financial metrics and industry context.";
+    }
+
+    /// <summary>
+    /// Generates a prompt for cash flow optimization analysis
+    /// </summary>
+    /// <param name="cashFlowData">Cash flow related metrics</param>
+    /// <param name="businessContext">Business context information</param>
+    /// <returns>Formatted prompt for cash flow optimization</returns>
+    public static string GetCashFlowOptimizationPrompt(
+        Dictionary<string, decimal> cashFlowData,
+        string businessContext)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Cash Flow Metrics:");
+        foreach (var metric in cashFlowData.OrderBy(m => m.Key))
+        {
+            sb.AppendLine($"  {metric.Key}: {metric.Value:N2}");
+        }
+
+        return $@"You are a cash flow management expert. Analyze and optimize cash flow for this business:
+
+{sb}
+
+**Business Context:** {businessContext}
+
+Please provide comprehensive cash flow optimization analysis:
+
+1. **Current Cash Flow Assessment**
+   - Operating cash flow health
+   - Cash burn rate analysis
+   - Runway calculation
+   - Working capital efficiency
+
+2. **Cash Flow Optimization Opportunities**
+   - Immediate actions (next 30 days)
+   - Short-term improvements (3-6 months)
+   - Long-term optimization (6-12 months)
+
+3. **Working Capital Management**
+   - Accounts receivable optimization
+   - Inventory management strategies
+   - Accounts payable strategies
+   - Cash conversion cycle improvement
+
+4. **Cash Generation Strategies**
+   - Revenue acceleration tactics
+   - Cost control measures
+   - Asset monetization opportunities
+   - Financing alternatives
+
+5. **Risk Mitigation**
+   - Cash flow volatility management
+   - Contingency planning
+   - Liquidity buffer recommendations
+
+6. **Implementation Roadmap**
+   - Prioritized action items
+   - Timeline and milestones
+   - Success metrics
+   - Monitoring and adjustment plans
+
+Focus on practical, implementable strategies with specific timelines and measurable outcomes.";
+    }
 }

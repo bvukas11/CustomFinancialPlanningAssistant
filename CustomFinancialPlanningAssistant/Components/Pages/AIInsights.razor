@@ -3,8 +3,10 @@
 @using CustomFinancialPlanningAssistant.Infrastructure.Repositories
 @using CustomFinancialPlanningAssistant.Core.Entities
 @using CustomFinancialPlanningAssistant.Core.DTOs
+@using CustomFinancialPlanningAssistant.Core.Enums
 @inject ILlamaService AIService
 @inject IFinancialDocumentRepository DocumentRepo
+@inject IIndustryBenchmarkRepository IndustryBenchmarkRepo
 @inject ISnackbar Snackbar
 @rendermode InteractiveServer
 
@@ -19,7 +21,7 @@
 <MudCard Elevation="2" Class="mb-4">
     <MudCardContent Class="pa-4">
         <MudGrid>
-            <MudItem xs="12" md="8">
+            <MudItem xs="12" md="4">
                 <MudSelect @bind-Value="_selectedDocumentId" 
                            Label="Select Document" 
                            Variant="Variant.Outlined"
@@ -27,6 +29,17 @@
                     @foreach (var doc in _documents)
                     {
                         <MudSelectItem Value="@doc.Id">@doc.FileName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudSelect @bind-Value="_selectedIndustry" 
+                           Label="Industry for Benchmarking" 
+                           Variant="Variant.Outlined"
+                           Disabled="_isGenerating">
+                    @foreach (var industry in Enum.GetValues<IndustryType>())
+                    {
+                        <MudSelectItem Value="@industry">@industry.ToString().Replace("And", " &")</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -284,6 +297,384 @@
                 </MudTimeline>
             }
         </MudTabPanel>
+
+        <!-- Industry Benchmarking Tab -->
+        <MudTabPanel Text="Industry Benchmarking" Icon="@Icons.Material.Filled.Compare">
+            @if (_benchmarkAnalysis != null)
+            {
+                <!-- Benchmark Comparison Cards -->
+                <MudGrid>
+                    @foreach (var benchmark in _benchmarkAnalysis.Benchmarks)
+                    {
+                        <MudItem xs="12" md="6">
+                            <MudCard Elevation="2">
+                                <MudCardHeader>
+                                    <CardHeaderContent>
+                                        <MudText Typo="Typo.h6">@benchmark.MetricName</MudText>
+                                    </CardHeaderContent>
+                                    <CardHeaderActions>
+                                        <MudChip T="string" Color="@GetBenchmarkColor(benchmark.PerformanceRating)"
+                                                Size="Size.Small">
+                                            @benchmark.PerformanceRating
+                                        </MudChip>
+                                    </CardHeaderActions>
+                                </MudCardHeader>
+                                <MudCardContent>
+                                    <MudGrid>
+                                        <MudItem xs="6">
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">Company</MudText>
+                                            <MudText Typo="Typo.h6">@benchmark.CompanyValue.ToString("F2")</MudText>
+                                        </MudItem>
+                                        <MudItem xs="6">
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">Industry Avg</MudText>
+                                            <MudText Typo="Typo.h6">@benchmark.IndustryAverage.ToString("F2")</MudText>
+                                        </MudItem>
+                                    </MudGrid>
+                                    <MudProgressLinear Value="@((double)benchmark.PercentileRanking)"
+                                                     Color="@GetBenchmarkColor(benchmark.PerformanceRating)"
+                                                     Class="mt-3" />
+                                    <MudText Typo="Typo.caption" Align="Align.Center">
+                                        @benchmark.PercentileRanking.ToString("F0")th Percentile
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">
+                                        @benchmark.MetricDescription
+                                    </MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+
+                <!-- Competitive Positioning Summary -->
+                <MudCard Elevation="2" Class="mt-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Competitive Positioning</MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudChip T="string" Color="@GetPositioningColor(_benchmarkAnalysis.Positioning.OverallPosition)"
+                                    Size="Size.Medium">
+                                @_benchmarkAnalysis.Positioning.OverallPosition
+                            </MudChip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudGrid>
+                            <MudItem xs="12" md="4">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Competitive Score</MudText>
+                                <MudText Typo="Typo.h4">@_benchmarkAnalysis.Positioning.CompetitiveScore</MudText>
+                            </MudItem>
+                            <MudItem xs="12" md="4">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Strengths</MudText>
+                                <MudText Typo="Typo.h4" Color="Color.Success">@_benchmarkAnalysis.Positioning.StrengthsCount</MudText>
+                            </MudItem>
+                            <MudItem xs="12" md="4">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Areas for Improvement</MudText>
+                                <MudText Typo="Typo.h4" Color="Color.Warning">@_benchmarkAnalysis.Positioning.WeaknessesCount</MudText>
+                            </MudItem>
+                        </MudGrid>
+                        <MudText Typo="Typo.body1" Class="mt-3">
+                            @_benchmarkAnalysis.Positioning.MarketPositionSummary
+                        </MudText>
+                    </MudCardContent>
+                </MudCard>
+
+                <!-- Key Insights -->
+                <MudCard Elevation="2" Class="mt-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Industry Insights</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudList T="string">
+                            @foreach (var insight in _benchmarkAnalysis.KeyInsights)
+                            {
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.Lightbulb">
+                                    <MudText>@insight</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+
+                <!-- Strategic Recommendations -->
+                <MudCard Elevation="2" Class="mt-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Strategic Recommendations</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudList T="string">
+                            @foreach (var recommendation in _benchmarkAnalysis.Recommendations)
+                            {
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle">
+                                    <MudText>@recommendation</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info">
+                    Select a document and industry above, then click "Generate Industry Benchmarking" to see competitive analysis.
+                </MudAlert>
+            }
+        </MudTabPanel>
+
+        <!-- Investment Advice Tab -->
+        <MudTabPanel Text="Investment Advice" Icon="@Icons.Material.Filled.TrendingUp">
+            @if (_investmentAdvice != null)
+            {
+                <!-- Investment Rating -->
+                <MudCard Elevation="2" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Investment Recommendation</MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudChip T="string" Color="@GetInvestmentColor(_investmentAdvice.Recommendation)"
+                                    Size="Size.Large">
+                                @_investmentAdvice.Recommendation
+                            </MudChip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudGrid>
+                            <MudItem xs="12" md="4">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Confidence Level</MudText>
+                                <MudText Typo="Typo.h5">@_investmentAdvice.ConfidenceLevel</MudText>
+                            </MudItem>
+                            <MudItem xs="12" md="4">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Time Horizon</MudText>
+                                <MudText Typo="Typo.h5">@_investmentAdvice.TimeHorizon</MudText>
+                            </MudItem>
+                            <MudItem xs="12" md="4">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Expected Returns</MudText>
+                                <MudText Typo="Typo.h5">@_investmentAdvice.ExpectedReturns</MudText>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                </MudCard>
+
+                <!-- Key Factors -->
+                <MudCard Elevation="2" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Key Factors</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudList T="string">
+                            @foreach (var factor in _investmentAdvice.KeyFactors)
+                            {
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.Info">
+                                    <MudText>@factor</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+
+                <!-- Risks -->
+                <MudCard Elevation="2" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Investment Risks</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudList T="string">
+                            @foreach (var risk in _investmentAdvice.Risks)
+                            {
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.Warning" IconColor="Color.Warning">
+                                    <MudText>@risk</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+
+                <!-- Alternatives -->
+                @if (_investmentAdvice.Alternatives.Any())
+                {
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">Alternative Options</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList T="string">
+                                @foreach (var alternative in _investmentAdvice.Alternatives)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.ArrowForward">
+                                        <MudText>@alternative</MudText>
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                }
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info">
+                    Generate investment advice to see personalized recommendations based on your financial data and risk tolerance.
+                </MudAlert>
+            }
+        </MudTabPanel>
+
+        <!-- Cash Flow Optimization Tab -->
+        <MudTabPanel Text="Cash Flow Optimization" Icon="@Icons.Material.Filled.AccountBalance">
+            @if (_cashFlowOptimization != null)
+            {
+                <!-- Current Status -->
+                <MudCard Elevation="2" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Current Cash Flow Status</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudGrid>
+                            <MudItem xs="12" md="4">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Current Cash Position</MudText>
+                                <MudText Typo="Typo.h4">@(_cashFlowOptimization?.CurrentCashPosition.ToString("C0") ?? "$0")</MudText>
+                            </MudItem>
+                            <MudItem xs="12" md="4">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Monthly Burn Rate</MudText>
+                                <MudText Typo="Typo.h4">@(_cashFlowOptimization?.MonthlyBurnRate.ToString("C0") ?? "$0")</MudText>
+                            </MudItem>
+                            <MudItem xs="12" md="4">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Runway (Months)</MudText>
+                                <MudText Typo="Typo.h4">@(_cashFlowOptimization?.RunwayMonths.ToString("F1") ?? "0.0")</MudText>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                </MudCard>
+
+                <!-- Immediate Actions -->
+                @if (_cashFlowOptimization.ImmediateActions.Any())
+                {
+                    <MudCard Elevation="2" Class="mb-4">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">Immediate Actions (Next 30 Days)</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList T="string">
+                                @foreach (var action in _cashFlowOptimization.ImmediateActions)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Schedule" IconColor="Color.Error">
+                                        <MudText>@action</MudText>
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                }
+
+                <!-- Short-term Improvements -->
+                @if (_cashFlowOptimization.ShortTermImprovements.Any())
+                {
+                    <MudCard Elevation="2" Class="mb-4">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">Short-term Improvements (3-6 Months)</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList T="string">
+                                @foreach (var improvement in _cashFlowOptimization.ShortTermImprovements)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Update" IconColor="Color.Warning">
+                                        <MudText>@improvement</MudText>
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                }
+
+                <!-- Long-term Strategies -->
+                @if (_cashFlowOptimization.LongTermStrategies.Any())
+                {
+                    <MudCard Elevation="2" Class="mb-4">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">Long-term Strategies (6-12 Months)</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList T="string">
+                                @foreach (var strategy in _cashFlowOptimization.LongTermStrategies)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Timeline" IconColor="Color.Info">
+                                        <MudText>@strategy</MudText>
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                }
+
+                <!-- Working Capital Optimizations -->
+                @if (_cashFlowOptimization.WorkingCapitalOptimizations.Any())
+                {
+                    <MudCard Elevation="2" Class="mb-4">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">Working Capital Optimizations</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList T="string">
+                                @foreach (var optimization in _cashFlowOptimization.WorkingCapitalOptimizations)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.BusinessCenter">
+                                        <MudText>@optimization</MudText>
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                }
+
+                <!-- Implementation Roadmap -->
+                @if (_cashFlowOptimization.ImplementationRoadmap.Any())
+                {
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">Implementation Roadmap</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList T="string">
+                                @foreach (var step in _cashFlowOptimization.ImplementationRoadmap)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Checklist">
+                                        <MudText>@step</MudText>
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                }
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info">
+                    Generate cash flow optimization analysis to see actionable strategies for improving liquidity and working capital.
+                </MudAlert>
+            }
+        </MudTabPanel>
+        
     </MudTabs>
     
     <!-- Action Buttons -->
@@ -293,7 +684,28 @@
                        Color="Color.Primary"
                        StartIcon="@Icons.Material.Filled.Refresh"
                        OnClick="() => GenerateInsightsOfType(_analysisType)">
-                Regenerate
+                Regenerate Current
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Compare"
+                       OnClick="GenerateIndustryBenchmarking"
+                       Disabled="_isGenerating || _selectedDocumentId == 0 || _selectedIndustry == IndustryType.Other">
+                Industry Benchmarking
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Tertiary"
+                       StartIcon="@Icons.Material.Filled.TrendingUp"
+                       OnClick="GenerateInvestmentAdvice"
+                       Disabled="_isGenerating || _selectedDocumentId == 0">
+                Investment Advice
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Info"
+                       StartIcon="@Icons.Material.Filled.AccountBalance"
+                       OnClick="GenerateCashFlowOptimization"
+                       Disabled="_isGenerating || _selectedDocumentId == 0">
+                Cash Flow Optimization
             </MudButton>
             <MudSpacer />
             <MudSelect @bind-Value="_analysisType" 
@@ -335,10 +747,14 @@ else if (_selectedDocumentId == 0)
 @code {
     private List<FinancialDocument> _documents = new();
     private int _selectedDocumentId;
+    private IndustryType _selectedIndustry = IndustryType.Technology;
     private bool _isGenerating;
     private bool _isAnswering;
     private string _analysisType = "HealthCheck";
     private AIInsightDto? _currentInsight;
+    private CompetitiveAnalysisDto? _benchmarkAnalysis;
+    private InvestmentRecommendationDto? _investmentAdvice;
+    private CashFlowOptimizationDto? _cashFlowOptimization;
     private string _customQuestion = string.Empty;
     private List<(string Question, string Answer, DateTime Timestamp)> _qaHistory = new();
     
@@ -416,6 +832,74 @@ else if (_selectedDocumentId == 0)
         }
     }
     
+    private async Task GenerateIndustryBenchmarking()
+    {
+        if (_selectedDocumentId == 0 || _selectedIndustry == IndustryType.Other) return;
+        
+        try
+        {
+            _isGenerating = true;
+            
+            _benchmarkAnalysis = await AIService.PerformIndustryBenchmarkingAsync(_selectedDocumentId, _selectedIndustry);
+            
+            Snackbar.Add($"Industry benchmarking complete! ({_benchmarkAnalysis.ExecutionTimeMs}ms)", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating benchmarking: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+    
+    private async Task GenerateInvestmentAdvice()
+    {
+        if (_selectedDocumentId == 0) return;
+        
+        try
+        {
+            _isGenerating = true;
+            
+            // For now, use "Moderate" as default risk tolerance
+            // In a real app, you'd have a risk tolerance selector
+            _investmentAdvice = await AIService.GenerateInvestmentAdviceAsync(_selectedDocumentId, "Moderate");
+            
+            Snackbar.Add("Investment advice generated!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating investment advice: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+    
+    private async Task GenerateCashFlowOptimization()
+    {
+        if (_selectedDocumentId == 0) return;
+        
+        try
+        {
+            _isGenerating = true;
+            
+            _cashFlowOptimization = await AIService.OptimizeCashFlowAsync(_selectedDocumentId);
+            
+            Snackbar.Add("Cash flow optimization analysis complete!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating cash flow optimization: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+    
     // Helper methods for UI
     private Color GetHealthScoreColor(int score)
     {
@@ -460,6 +944,43 @@ else if (_selectedDocumentId == 0)
             "High" => Icons.Material.Filled.Error,
             "Critical" => Icons.Material.Filled.Dangerous,
             _ => Icons.Material.Filled.Help
+        };
+    }
+    
+    private Color GetBenchmarkColor(string performanceRating)
+    {
+        return performanceRating switch
+        {
+            "Well Above Average" => Color.Success,
+            "Above Average" => Color.Info,
+            "At Industry Average" => Color.Default,
+            "Below Average" => Color.Warning,
+            "Well Below Average" => Color.Error,
+            _ => Color.Default
+        };
+    }
+    
+    private Color GetPositioningColor(string overallPosition)
+    {
+        return overallPosition switch
+        {
+            "Leader" => Color.Success,
+            "Above Average" => Color.Info,
+            "Average" => Color.Default,
+            "Below Average" => Color.Warning,
+            "Laggard" => Color.Error,
+            _ => Color.Default
+        };
+    }
+    
+    private Color GetInvestmentColor(string recommendation)
+    {
+        return recommendation.ToLower() switch
+        {
+            var r when r.Contains("buy") => Color.Success,
+            var r when r.Contains("hold") => Color.Warning,
+            var r when r.Contains("sell") => Color.Error,
+            _ => Color.Default
         };
     }
 }

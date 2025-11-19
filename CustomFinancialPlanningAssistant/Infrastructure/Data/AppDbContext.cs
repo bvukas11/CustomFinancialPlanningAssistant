@@ -38,6 +38,11 @@ public class AppDbContext : DbContext
     public DbSet<Report> Reports { get; set; }
 
     /// <summary>
+    /// Industry benchmark data for competitive analysis
+    /// </summary>
+    public DbSet<IndustryBenchmark> IndustryBenchmarks { get; set; }
+
+    /// <summary>
     /// Configures the database schema using Fluent API
     /// </summary>
     /// <param name="modelBuilder">Model builder for entity configuration</param>
@@ -146,6 +151,59 @@ public class AppDbContext : DbContext
             // Set default value for GeneratedDate
             entity.Property(e => e.GeneratedDate)
                 .HasDefaultValueSql("GETUTCDATE()");
+        });
+
+        // Configure IndustryBenchmark entity
+        modelBuilder.Entity<IndustryBenchmark>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // Create composite index on Industry + MetricName for fast lookups
+            entity.HasIndex(e => new { e.Industry, e.MetricName })
+                .HasDatabaseName("IX_IndustryBenchmarks_Industry_MetricName")
+                .IsUnique();
+
+            // Create index on Industry for industry-based queries
+            entity.HasIndex(e => e.Industry)
+                .HasDatabaseName("IX_IndustryBenchmarks_Industry");
+
+            // Create index on MetricName for metric-based queries
+            entity.HasIndex(e => e.MetricName)
+                .HasDatabaseName("IX_IndustryBenchmarks_MetricName");
+
+            // Create index on LastUpdated for freshness queries
+            entity.HasIndex(e => e.LastUpdated)
+                .IsDescending()
+                .HasDatabaseName("IX_IndustryBenchmarks_LastUpdated");
+
+            // Configure decimal precision for benchmark values
+            entity.Property(e => e.AverageValue)
+                .HasPrecision(18, 4);
+
+            entity.Property(e => e.MedianValue)
+                .HasPrecision(18, 4);
+
+            entity.Property(e => e.Percentile25)
+                .HasPrecision(18, 4);
+
+            entity.Property(e => e.Percentile75)
+                .HasPrecision(18, 4);
+
+            // Set default value for LastUpdated
+            entity.Property(e => e.LastUpdated)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            // Configure string lengths
+            entity.Property(e => e.MetricName)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(e => e.DataSource)
+                .HasMaxLength(200)
+                .HasDefaultValue("Industry Standard");
+
+            entity.Property(e => e.Notes)
+                .HasMaxLength(1000);
         });
     }
 }
