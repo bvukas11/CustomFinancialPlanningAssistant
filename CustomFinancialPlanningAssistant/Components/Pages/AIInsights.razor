@@ -17,7 +17,7 @@
 
 <!-- Document & Analysis Selector -->
 <MudCard Elevation="2" Class="mb-4">
-    <MudCardContent>
+    <MudCardContent Class="pa-4">
         <MudGrid>
             <MudItem xs="12" md="8">
                 <MudSelect @bind-Value="_selectedDocumentId" 
@@ -299,6 +299,7 @@
             <MudSelect @bind-Value="_analysisType" 
                        Label="Analysis Type" 
                        Variant="Variant.Outlined"
+                       Class="mt-2"
                        Immediate="true"
                        OnClose="() => GenerateInsightsOfType(_analysisType)"
                        Style="min-width: 250px;">

@@ -27,6 +27,20 @@
     .trends-6-months .mud-chart-line .mud-chart-xaxis text {
         font-size: 12px;
     }
+    
+    /* FIX: Add spacing for outlined select labels */
+    .mud-input-outlined-border {
+        margin-top: 8px !important;
+    }
+    
+    .mud-input-label-outlined {
+        background-color: white;
+        padding: 0 4px;
+    }
+    
+    .mud-select {
+        margin-top: 12px;
+    }
 </style>
 
 <MudText Typo="Typo.h4" GutterBottom="true">
@@ -36,16 +50,16 @@
 
 <!-- Document Selector -->
 <MudCard Elevation="2" Class="mb-4">
-    <MudCardContent>
+    <MudCardContent Class="pa-4">
         <MudGrid>
             <MudItem xs="12" md="6">
                 <MudSelect @bind-Value="_selectedDocumentId" 
                            Label="Select Document" 
                            Variant="Variant.Outlined"
-                           T="int">
+                           OnClose="LoadTrendsData">
                     @foreach (var doc in _documents)
                     {
-                        <MudSelectItem T="int" Value="@doc.Id">@doc.FileName</MudSelectItem>
+                        <MudSelectItem Value="@doc.Id">@doc.FileName</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -53,16 +67,13 @@
                 <MudSelect @bind-Value="_selectedMonths" 
                            Label="Time Period" 
                            Variant="Variant.Outlined"
-                           T="int">
-                    <MudSelectItem T="int" Value="6">Last 6 Months</MudSelectItem>
-                    <MudSelectItem T="int" Value="12">Last 12 Months</MudSelectItem>
-                    <MudSelectItem T="int" Value="24">Last 24 Months</MudSelectItem>
+                           OnClose="LoadTrendsData">
+                    <MudSelectItem Value="6">Last 6 Months</MudSelectItem>
+                    <MudSelectItem Value="12">Last 12 Months</MudSelectItem>
+                    <MudSelectItem Value="24">Last 24 Months</MudSelectItem>
                 </MudSelect>
             </MudItem>
         </MudGrid>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" OnClick="LoadTrendsData">
-            Load Trends
-        </MudButton>
     </MudCardContent>
 </MudCard>
 

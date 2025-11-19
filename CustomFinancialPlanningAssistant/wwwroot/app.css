@@ -58,3 +58,25 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+/* MudBlazor Outlined Select/TextField Label Fix */
+.mud-input-control-margin-dense .mud-input-outlined-border {
+    margin-top: 8px !important;
+}
+
+.mud-input-label-outlined {
+    background-color: white !important;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+}
+
+/* Add breathing room to select and text field components */
+.mud-select,
+.mud-input-control {
+    margin-top: 8px !important;
+}
+
+/* Ensure card content has padding */
+.mud-card-content {
+    padding: 16px !important;
+}
