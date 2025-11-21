@@ -30,8 +30,8 @@ GO
 -- =============================================
 
 DECLARE @DocumentCounter INT = 1;
-DECLARE @TotalDocuments INT = 24; -- 2 years of monthly reports
-DECLARE @StartDate DATE = '2023-01-01';
+DECLARE @TotalDocuments INT = 120; -- 2 years of monthly reports
+DECLARE @StartDate DATE = '2013-01-01';
 
 PRINT 'Creating Financial Documents...';
 
@@ -486,13 +486,13 @@ GROUP BY Period
 ORDER BY Period DESC;
 
 PRINT '';
-PRINT '=============================================',
-'  Seeding completed successfully!',
-'  You can now use the AI Insights page to see',
-'  Industry Benchmarking, Investment Advice,',
-'  and Cash Flow Optimization features!',
-'  The Trends page shows beautiful charts',
-'  with 24 months of data!',
-'=============================================';
+PRINT '=============================================';
+PRINT '  Seeding completed successfully!';
+PRINT '  You can now use the AI Insights page to see';
+PRINT '  Industry Benchmarking, Investment Advice,';
+PRINT '  and Cash Flow Optimization features!';
+PRINT '  The Trends page shows beautiful charts';
+PRINT '  with 24 months of data!'; 
+PRINT '=============================================';
 
 GO
