@@ -81,90 +81,64 @@ ANALYSIS RULES:
 
 FORMAT (MUST MATCH EXACTLY):
 
-OVERALL RATING: {(profitMargin > 15 ? "Good" : profitMargin > 5 ? "Fair" : "Poor")}
+OVERALL RATING: {(profitMargin > 15m ? "Good" : profitMargin > 5m ? "Fair" : "Poor")}
 
 STRENGTHS (EXACTLY 3):
-1. Profit margin of {profitMargin:F2}% {(profitMargin > 10 ? "indicates strong profitability" : "shows profitability")}
+1. Profit margin of {profitMargin:F2}% {(profitMargin > 0 ? "indicates profitability" : "indicates a loss")}
 2. Current ratio of {currentRatio:F2} {(currentRatio > 1.5m ? "demonstrates strong liquidity" : "indicates adequate liquidity")}
 3. {(summary.NetIncome > 0 ? $"Positive net income of {summary.NetIncome:C}" : $"Revenue of {summary.Revenue:C}")} supports operations
 
-CONCERNS (EXACTLY 3):
-1. {(debtToEquity > 1 ? $"Debt-to-equity ratio of {debtToEquity:F2} indicates leverage risk" : $"Equity of {summary.Equity:C} requires monitoring")}
-2. {(expenseRatio > 70 ? $"Expense ratio of {expenseRatio:F2}% is high relative to revenue" : $"Expenses of {summary.Expenses:C} represent {expenseRatio:F2}% of revenue")}
-3. {(summary.Liabilities > summary.Assets * 0.5m ? $"Liabilities of {summary.Liabilities:C} are {(summary.Liabilities / summary.Assets * 100):F1}% of assets" : $"Asset base of {summary.Assets:C} requires strategic deployment")}
+RECOMMENDATIONS (EXACTLY 3):
+1. {(expenseRatio > 75m ? "Reduce expense ratio to improve profitability" : "Monitor expense growth")}
+2. {(profitMargin < 15m ? "Increase profit margins through revenue growth or cost reduction" : "Maintain profitability")}
+3. {(currentRatio < 1.5m ? "Improve liquidity and working capital management" : "Continue current financial management")}
+",
+            "Risk" => $@"You are a financial analyst. Use ONLY these numbers. Do NOT interpret.
 
-PRIORITY ACTIONS (EXACTLY 3):
-1. {(expenseRatio > 70 ? "Reduce operating expenses to improve margins" : "Monitor expense growth relative to revenue")}
-2. {(currentRatio < 1.5m ? "Improve working capital management" : "Maintain current liquidity levels")}
-3. {(profitMargin < 10 ? "Increase revenue through market expansion or pricing optimization" : "Focus on operational efficiency to maintain profitability")}",
-            "RiskAnalysis" => $@"You are a risk expert. Analyze ONLY these specific metrics. Do NOT add interpretation.
-
-FINANCIAL METRICS (USE THESE EXACT NUMBERS):
-Net Income: {summary.NetIncome:C}
-Revenue: {summary.Revenue:C}
-Expenses: {summary.Expenses:C}
-Debt/Equity Ratio: {debtToEquity:F2}
-Current Ratio: {currentRatio:F2}
-Profit Margin: {profitMargin:F2}%
-Expense Ratio: {expenseRatio:F2}%
-
-RISK SCORING:
-- Net Income < 0: High Risk
-- Debt/Equity > 2: High Risk
-- Current Ratio < 1: Medium Risk
-- Expense Ratio > 80%: Medium Risk
-
-FORMAT (MUST MATCH EXACTLY):
-
-RISK LEVEL: {(summary.NetIncome < 0 || debtToEquity > 2 ? "High" : currentRatio < 1 || expenseRatio > 80 ? "Medium" : "Low")}
-
-RISK FACTORS (EXACTLY 5):
-1. {(summary.NetIncome < 0 ? $"Negative net income of {summary.NetIncome:C}" : $"Net income of {summary.NetIncome:C}")} - Severity: {(summary.NetIncome < 0 ? "High" : "Low")}
-2. {(debtToEquity > 2 ? $"High debt-to-equity ratio of {debtToEquity:F2}" : $"Debt-to-equity ratio of {debtToEquity:F2}")} - Severity: {(debtToEquity > 2 ? "High" : debtToEquity > 1 ? "Medium" : "Low")}
-3. {(currentRatio < 1 ? $"Low current ratio of {currentRatio:F2} indicates liquidity constraints" : $"Current ratio of {currentRatio:F2}")} - Severity: {(currentRatio < 1 ? "High" : currentRatio < 1.5m ? "Medium" : "Low")}
-4. {(expenseRatio > 80 ? $"High expense ratio of {expenseRatio:F2}% reduces profitability" : $"Expense ratio of {expenseRatio:F2}%")} - Severity: {(expenseRatio > 80 ? "Medium" : "Low")}
-5. {(summary.Liabilities > summary.Assets * 0.6m ? $"Liabilities at {(summary.Liabilities / summary.Assets * 100):F1}% of assets" : $"Liabilities of {summary.Liabilities:C}")} - Severity: {(summary.Liabilities > summary.Assets * 0.6m ? "Medium" : "Low")}
-
-MITIGATION STRATEGIES (EXACTLY 3):
-1. {(summary.NetIncome < 0 ? "Implement cost reduction program to achieve profitability" : "Monitor profit margins and maintain cost controls")}
-2. {(debtToEquity > 1.5m ? "Reduce debt levels or increase equity to improve leverage ratio" : "Maintain balanced capital structure")}
-3. {(currentRatio < 1.5m ? "Improve cash flow management and working capital" : "Continue prudent financial management")}",
-
-            "Optimization" => $@"You are an optimization consultant. Analyze ONLY these metrics. Provide specific % targets.
-
-CURRENT METRICS (USE THESE EXACT NUMBERS):
+FINANCIAL DATA (USE THESE EXACT NUMBERS):
 Revenue: {summary.Revenue:C}
 Expenses: {summary.Expenses:C}
 Net Income: {summary.NetIncome:C}
-Profit Margin: {profitMargin:F2}%
-Expense Ratio: {expenseRatio:F2}%
-
-FORMAT (MUST MATCH EXACTLY):
-
-OPTIMIZATION OPPORTUNITIES (EXACTLY 5):
-1. Reduce operating expenses by 5-10% to save ${(summary.Expenses * 0.05m):N0} to ${(summary.Expenses * 0.10m):N0}
-2. Increase revenue by 10-15% through market expansion to reach ${(summary.Revenue * 1.10m):N0} to ${(summary.Revenue * 1.15m):N0}
-3. Improve profit margin from {profitMargin:F2}% to {(profitMargin * 1.2m):F2}% through efficiency gains
-4. Reduce expense ratio from {expenseRatio:F2}% to {(expenseRatio * 0.90m):F2}% to improve profitability
-5. Target net income increase of 20-30% to ${(summary.NetIncome * 1.20m):N0} to ${(summary.NetIncome * 1.30m):N0}",
-
-            "Growth" => $@"You are a growth strategist. Base strategies ONLY on these metrics. Provide specific targets.
-
-CURRENT METRICS (USE THESE EXACT NUMBERS):
-Revenue: {summary.Revenue:C}
-Net Income: {summary.NetIncome:C}
-Profit Margin: {profitMargin:F2}%
 Assets: {summary.Assets:C}
+Liabilities: {summary.Liabilities:C}
+Profit Margin: {profitMargin:F2}%
+Expense Ratio: {expenseRatio:F2}%
 
 FORMAT (MUST MATCH EXACTLY):
 
-GROWTH STRATEGIES (EXACTLY 5):
-1. Expand into new markets to increase revenue by 15-20% to ${(summary.Revenue * 1.15m):N0}-${(summary.Revenue * 1.20m):N0}
-2. Launch new products or services to add ${(summary.Revenue * 0.10m):N0} in additional revenue
-3. Increase profit margin from {profitMargin:F2}% to {(profitMargin + 3):F2}% through operational improvements
-4. Leverage asset base of {summary.Assets:C} to generate 10-15% ROA improvement
-5. Target net income growth of 25% to ${(summary.NetIncome * 1.25m):N0} within 12 months",
+KEY RISKS (EXACTLY 3):
+1. Revenue of {summary.Revenue:C} with profit margin of {profitMargin:F2}%
+2. Expenses of {summary.Expenses:C} represent {expenseRatio:F2}% of revenue
+3. Net income of {summary.NetIncome:C} {(summary.NetIncome > 0 ? "indicates profitability" : "requires attention")}
 
+RECOMMENDATIONS (EXACTLY 3):
+1. {(expenseRatio > 75m ? "Reduce expense ratio to improve profitability" : "Monitor expense growth")}
+2. {(profitMargin < 15m ? "Increase profit margins through revenue growth or cost reduction" : "Maintain profitability")}
+3. {(currentRatio < 1.5m ? "Improve liquidity and working capital management" : "Continue current financial management")}
+",
+            "Growth" => $@"You are a financial analyst. Use ONLY these numbers. Do NOT interpret.
+
+FINANCIAL DATA (USE THESE EXACT NUMBERS):
+Revenue: {summary.Revenue:C}
+Expenses: {summary.Expenses:C}
+Net Income: {summary.NetIncome:C}
+Assets: {summary.Assets:C}
+Liabilities: {summary.Liabilities:C}
+Profit Margin: {profitMargin:F2}%
+Expense Ratio: {expenseRatio:F2}%
+
+FORMAT (MUST MATCH EXACTLY):
+
+KEY OBSERVATIONS (EXACTLY 3):
+1. Revenue of {summary.Revenue:C} with profit margin of {profitMargin:F2}%
+2. Expenses of {summary.Expenses:C} represent {expenseRatio:F2}% of revenue
+3. Net income of {summary.NetIncome:C} {(summary.NetIncome > 0 ? "indicates profitability" : "requires attention")}
+
+RECOMMENDATIONS (EXACTLY 3):
+1. {(expenseRatio > 75m ? "Reduce expense ratio to improve profitability" : "Monitor expense growth")}
+2. {(profitMargin < 15m ? "Increase profit margins through revenue growth or cost reduction" : "Maintain profitability")}
+3. {(currentRatio < 1.5m ? "Improve liquidity and working capital management" : "Continue current financial management")}
+",
             _ => $@"You are a financial analyst. Use ONLY these numbers. Do NOT interpret.
 
 FINANCIAL DATA (USE THESE EXACT NUMBERS):
@@ -184,12 +158,13 @@ KEY OBSERVATIONS (EXACTLY 3):
 3. Net income of {summary.NetIncome:C} {(summary.NetIncome > 0 ? "indicates profitability" : "requires attention")}
 
 RECOMMENDATIONS (EXACTLY 3):
-1. {(expenseRatio > 75 ? "Reduce expense ratio to improve profitability" : "Monitor expense growth")}
-2. {(profitMargin < 15 ? "Increase profit margins through revenue growth or cost reduction" : "Maintain profitability")}
+1. {(expenseRatio > 75m ? "Reduce expense ratio to improve profitability" : "Monitor expense growth")}
+2. {(profitMargin < 15m ? "Increase profit margins through revenue growth or cost reduction" : "Maintain profitability")}
 3. {(currentRatio < 1.5m ? "Improve liquidity and working capital management" : "Continue current financial management")}
 "
         };
     }
+
 
     private int CalculateHealthScore(
         (decimal Revenue, decimal Expenses, decimal NetIncome, decimal Assets, decimal Liabilities, decimal Equity) summary,
